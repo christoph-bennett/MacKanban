@@ -1,0 +1,81 @@
+# Kanban Board
+
+A single-person, local to-do board that pushes back against an ever-growing backlog: cards visibly age, and the board limits how much new work can be added while old work goes untouched.
+
+## Language
+
+### Board structure
+
+**Board**:
+The single board the user works on. It has exactly three fixed Columns, and the user cannot add, remove or rename them.
+_Avoid_: Project, list
+
+**Column**:
+One of the three fixed stages a Card can be in: Backlog, Doing or Done.
+_Avoid_: Lane, swimlane, stage, status
+
+**Backlog**:
+The Column for Cards that have been captured but not started.
+_Avoid_: To do, inbox
+
+**Doing**:
+The Column for Cards currently being worked on. A WIP Limit applies to it.
+_Avoid_: In progress, active
+
+**Done**:
+The Column for finished Cards. Nothing moves out of Done.
+_Avoid_: Complete, finished
+
+### Cards
+
+**Card**:
+One piece of work on the Board, made up of a title and optional notes.
+_Avoid_: Item, todo, task, ticket
+
+**Column Visit**:
+One stretch of time a Card spent in a Column, from when it entered to when it left. A Card's Column Visits are its full history on the Board.
+_Avoid_: Transition, move, history entry
+
+**Open Card**:
+A Card in Backlog or Doing.
+_Avoid_: Active card, pending card
+
+**Discard**:
+Removing an Open Card from the Board on purpose because the work won't be done. It is recorded, but it isn't a completion.
+_Avoid_: Delete, cancel, abandon
+
+**Archive**:
+Where Done Cards go after a while. They are no longer shown on the Board but still count toward history.
+_Avoid_: Trash, history
+
+### Age and urgency
+
+**Card Age**:
+Time since a Card was created. It never resets.
+_Avoid_: Created age, lifetime
+
+**Column Age**:
+Total time a Card has spent in its current Column, added up across every visit. Moving the Card away and back again does not reset it.
+_Avoid_: Time in column, stage age, dwell time
+
+**Urgency**:
+How strongly a Card signals that it needs attention. In Backlog it comes from Card Age, in Doing from Column Age, and Done Cards have none.
+_Avoid_: Staleness, heat, rot
+
+### Limits
+
+**WIP Limit**:
+The maximum number of Cards allowed in Doing at once. The user sets it, and it is enforced strictly.
+_Avoid_: Doing limit, max active
+
+**Throughput**:
+The number of Cards moved to Done in the last 14 days. Discarded Cards don't count.
+_Avoid_: Velocity, completion rate
+
+**Capacity**:
+The maximum number of Open Cards the Board allows right now. It rises with Throughput and falls as Open Cards age.
+_Avoid_: Creation limit, backlog limit, quota
+
+**Triage**:
+The step forced on the user before creating a Card when Capacity is nearly used up. They are shown the Open Card with the highest Urgency and must start it, Discard it or explicitly keep it. Keeping a Card does not change its Urgency.
+_Avoid_: Review, check-in
