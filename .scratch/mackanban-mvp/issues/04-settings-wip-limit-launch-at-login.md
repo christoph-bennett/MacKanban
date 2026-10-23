@@ -19,3 +19,4 @@
 - Checked by hand by Christoph on 2026-10-23.
 - Amended after trying it: over the limit, the whole Doing Column turns red (tinted background and a red outline), not only the count.
 - Amended after trying it: dragging a Card over a full Doing turns the Column red (as when over the limit) and refuses the drop, so the Card goes back instead of an alert explaining afterwards. Other refused drops (e.g. Backlog → Done) still drop and explain. The Board has `moveRefusal(_:to:)` for this.
+- The red refused drop over a full Doing checked by hand by Christoph on 2026-10-23.

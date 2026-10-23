@@ -11,6 +11,6 @@
 - [x] The app shows a Dock icon, appears in ⌘Tab and opens the Board window with three empty Columns
 - [ ] The status item menu has Open Board (brings the window forward, reopening it if closed) and Quit
 - [ ] Closing the Board window doesn't quit the app
-- [ ] Follows light and dark appearance
+- [x] Follows light and dark appearance
 
-**Checked by hand still open:** the status item menu (Open Board reopening a closed window, Quit), closing the window without quitting, and dark mode. Colours are all semantic system colours, but a dark screenshot couldn't be taken without switching the system appearance.
+**Checked by hand:** dark mode, by Christoph on 2026-10-23. Still open: the status item menu (Open Board reopening a closed window, Quit) and closing the window without quitting.
