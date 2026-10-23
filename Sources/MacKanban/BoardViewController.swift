@@ -382,11 +382,10 @@ private final class CardView: NSView, NSDraggingSource {
         didSet {
             needsDisplay = true
             setAccessibilitySelected(isSelected)
-            updatePencil()
         }
     }
     private let isEditable: Bool
-    /// Opens the edit sheet. Shown while the pointer is over the Card or it's selected.
+    /// Opens the edit sheet. Shown only while the pointer is over the Card.
     private let pencil = NSButton()
     private var isHovered = false {
         didSet { updatePencil() }
@@ -463,7 +462,7 @@ private final class CardView: NSView, NSDraggingSource {
     }
 
     private func updatePencil() {
-        pencil.isHidden = !(isHovered || isSelected)
+        pencil.isHidden = !isHovered
     }
 
     @objc private func openFromPencil(_ sender: Any?) {
@@ -476,6 +475,11 @@ private final class CardView: NSView, NSDraggingSource {
         guard isEditable else { return }
         addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
                                        owner: self, userInfo: nil))
+        // A Card rebuilt under a still pointer (after a move, an edit or the minute
+        // refresh) gets no mouseEntered, so check where the pointer is now.
+        if let window, window.isKeyWindow {
+            isHovered = bounds.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil))
+        }
     }
 
     override func mouseEntered(with event: NSEvent) { isHovered = true }
