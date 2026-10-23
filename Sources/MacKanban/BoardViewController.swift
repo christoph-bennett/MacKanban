@@ -281,11 +281,13 @@ private final class CardView: NSView, NSDraggingSource {
 
         let title = NSTextField(wrappingLabelWithString: card.title)
         title.font = .preferredFont(forTextStyle: .body)
+        title.isSelectable = false
         let stack = NSStackView(views: [title])
         if !card.notes.isEmpty {
             let notes = NSTextField(wrappingLabelWithString: card.notes)
             notes.font = .preferredFont(forTextStyle: .callout)
             notes.textColor = .secondaryLabelColor
+            notes.isSelectable = false
             notes.maximumNumberOfLines = 3
             notes.lineBreakMode = .byTruncatingTail
             stack.addArrangedSubview(notes)
@@ -309,6 +311,12 @@ private final class CardView: NSView, NSDraggingSource {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// The whole Card is one target: clicks and drags on its labels select or
+    /// drag the Card, and the labels show no text cursor.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        frame.contains(point) ? self : nil
+    }
 
     override func mouseDown(with event: NSEvent) {
         onSelect?()
