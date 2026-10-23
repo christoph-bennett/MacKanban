@@ -9,4 +9,5 @@
 - [ ] A Done Card disappears from the Board 7 days after entering Done, within a minute of that moment
 - [ ] The Archive window lists archived Done Cards and Discarded Cards with their dates, newest first, and opens them read-only
 - [ ] No event is written when a Card is archived
+- [ ] Throughput still counts a Card archived less than 14 days after it was finished (Capacity reads it from the history, ticket 08)
 - [ ] Board tests: a Done Card visible at 6 days, archived at 7; Discarded Cards appear in the Archive query

@@ -4,9 +4,15 @@
 
 **Blocked by:** 05, 06
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] The gauge shows Open Cards against Capacity and turns red as free slots run out
-- [ ] The breakdown shows base, +Throughput and −aging with one decimal place
+- [ ] The breakdown shows base, +Throughput and −aging with two decimal places, and the rounding down or the cap, so it always adds up to the Capacity shown
 - [ ] Capacity can drop over time with no user action, and the gauge reflects it within a minute
-- [ ] Board tests: an empty Board has Capacity 5. Throughput counts only the last 14 days (4 recent and 1 at 15 days gives 4). Urgencies 1, 0.5 and 0.4 with Throughput 2 give Capacity 5. Capped at 20, can reach 0 or below. A Discarded Card adds no Throughput and no Urgency
+- [x] Board tests: an empty Board has Capacity 5. Throughput counts only the last 14 days (4 recent and 1 at 15 days gives 4). Urgencies 1, 0.5 and 0.4 with Throughput 2 give Capacity 5. Capped at 20, can reach 0 or below. A Discarded Card adds no Throughput and no Urgency
+
+**Notes from implementing:**
+- Throughput is counted from each Card's history, not from the Done Cards on the Board, so archiving (ticket 10) won't shrink it.
+- The breakdown uses two decimals instead of one: with one, "−0.0 from aging" could sit next to a Capacity one lower than the sum.
+- The gauge reads "Open Cards of Capacity", e.g. "8 of 0" on a Board full of red Cards. Orange with 1–2 free slots, red with none.
+- Checked by screenshot on the sample Board. Not yet checked by hand: the breakdown popover and tooltip, the colour as slots run out, the drop within a minute.

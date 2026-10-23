@@ -13,6 +13,12 @@ public struct Card: Equatable, Identifiable, Sendable {
     public let age: TimeInterval?
 }
 
+/// What the Board window shows, computed together at one moment.
+public struct BoardState: Sendable {
+    public let columns: [Column: [Card]]
+    public let capacity: Capacity
+}
+
 /// How full Doing is: shown as "count / limit" in its header.
 public struct WIPStatus: Equatable, Sendable {
     public let count: Int
@@ -266,11 +272,26 @@ public final class Board {
     /// Every Column's Cards in display order: Backlog oldest first, Doing longest
     /// in Doing first (counting every visit), Done most recently finished first.
     public func columns() throws -> [Column: [Card]] {
+        try state().columns
+    }
+
+    public func capacity() throws -> Capacity {
+        try state().capacity
+    }
+
+    /// The Columns and Capacity from one pass over the Cards, at one moment: what
+    /// the Board window shows on every refresh.
+    public func state() throws -> BoardState {
         let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
         request.relationshipKeyPathsForPrefetching = ["events"]
         let now = now()
-        let placed = try context.fetch(request).compactMap { object -> (object: NSManagedObject, column: Column, key: TimeInterval, age: TimeInterval?)? in
+        let throughputSince = now.addingTimeInterval(-Capacity.throughputWindow)
+        var throughput = 0
+        let placed = try context.fetch(request).compactMap { object -> (card: Card, column: Column, key: TimeInterval)? in
             let visits = Self.visits(of: object)
+            // From the history, not from what's on the Board: archived Done Cards
+            // still count, and Discarded Cards never entered Done.
+            if visits.contains(where: { $0.column == .done && $0.entered >= throughputSince }) { throughput += 1 }
             guard let column = Self.column(after: visits) else { return nil }  // Discarded
             let created = visits.first?.entered ?? now
             let timeInDoing = visits.timeSpent(in: .doing, until: now)
@@ -280,11 +301,15 @@ public final class Board {
             case .doing: (timeInDoing, -timeInDoing)
             case .done: (nil, -(visits.last?.entered ?? now).timeIntervalSinceReferenceDate)
             }
-            return (object: object, column: column, key: key, age: age)
+            guard let card = Self.card(object, in: column, age: age) else { return nil }
+            return (card, column, key)
         }
-        return Dictionary(grouping: placed, by: \.column).mapValues { cards in
-            cards.sorted { $0.key < $1.key }.compactMap { Self.card($0.object, in: $0.column, age: $0.age) }
+        let columns = Dictionary(grouping: placed, by: \.column).mapValues { cards in
+            cards.sorted { $0.key < $1.key }.map(\.card)
         }
+        let open = (columns[.backlog] ?? []) + (columns[.doing] ?? [])
+        let capacity = Capacity(throughput: throughput, aging: open.reduce(0) { $0 + $1.urgency }, openCards: open.count)
+        return BoardState(columns: columns, capacity: capacity)
     }
 
     /// The whole event log, oldest first.

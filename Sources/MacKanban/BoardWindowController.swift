@@ -5,9 +5,12 @@ import KanbanCore
 @MainActor
 final class BoardWindowController: NSWindowController, NSToolbarDelegate {
     private let boardView: BoardViewController
+    private let gauge = CapacityGauge()
 
     init(board: Board) {
         boardView = BoardViewController(board: board)
+        let gauge = gauge
+        boardView.onCapacityChange = { gauge.show($0) }
         let window = NSWindow(contentViewController: boardView)
         window.title = "MacKanban"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -40,9 +43,10 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
     // MARK: NSToolbarDelegate
 
     private static let newCardItem = NSToolbarItem.Identifier("newCard")
+    private static let capacityItem = NSToolbarItem.Identifier("capacity")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, Self.newCardItem]
+        [.flexibleSpace, Self.capacityItem, Self.newCardItem]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -51,6 +55,12 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        if identifier == Self.capacityItem {
+            let item = NSToolbarItem(itemIdentifier: identifier)
+            item.label = "Capacity"
+            item.view = gauge
+            return item
+        }
         guard identifier == Self.newCardItem else { return nil }
         let item = NSToolbarItem(itemIdentifier: identifier)
         item.label = "New Card"

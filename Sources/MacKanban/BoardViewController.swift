@@ -10,6 +10,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     private let columnViews = Column.allCases.map { ColumnView(column: $0) }
     private var selectedCard: UUID?
     private var refreshTimer: Timer?
+    /// After every reload, for the toolbar's Capacity gauge.
+    var onCapacityChange: ((Capacity) -> Void)?
 
     init(board: Board) {
         self.board = board
@@ -60,7 +62,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
 
     func reload() {
         do {
-            let columns = try board.columns()
+            let state = try board.state()
+            let columns = state.columns
             // A Card that left the Board (Discarded, or an undone creation) can't stay selected.
             if let selectedCard, !columns.values.contains(where: { $0.contains { $0.id == selectedCard } }) {
                 self.selectedCard = nil
@@ -70,6 +73,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             }
             let wip = WIPStatus(count: columns[.doing]?.count ?? 0, limit: board.wipLimit)
             columnViews.first { $0.column == .doing }?.showCount("\(wip.count) / \(wip.limit)", isWarning: wip.isOverLimit)
+            onCapacityChange?(state.capacity)
         } catch {
             show(error)
         }
