@@ -9,8 +9,8 @@
 - [x] `swift build` and the test script succeed with only the Command Line Tools
 - [x] The bundle script produces `build/MacKanban.app` and the install script installs and launches it
 - [x] The app shows a Dock icon, appears in ⌘Tab and opens the Board window with three empty Columns
-- [ ] The status item menu has Open Board (brings the window forward, reopening it if closed) and Quit
-- [ ] Closing the Board window doesn't quit the app
+- [x] The status item menu has Open Board (brings the window forward, reopening it if closed) and Quit
+- [x] Closing the Board window doesn't quit the app
 - [x] Follows light and dark appearance
 
-**Checked by hand:** dark mode, by Christoph on 2026-10-23. Still open: the status item menu (Open Board reopening a closed window, Quit) and closing the window without quitting.
+**Checked by hand** by Christoph on 2026-10-23.
