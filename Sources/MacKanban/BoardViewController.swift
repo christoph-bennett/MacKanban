@@ -30,6 +30,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             view.heightAnchor.constraint(equalTo: columns.heightAnchor, constant: -32).isActive = true
             view.onSelect = { [weak self] card in self?.select(card) }
             view.onDrop = { [weak self] card, column in self?.move(card, to: column) }
+            view.dropRefusal = { [weak self] card, column in try? self?.board.moveRefusal(card, to: column) }
             view.onOpen = { [weak self] card in self?.open(card) }
             view.onDiscard = { [weak self] card in self?.discard(card) }
         }
@@ -274,6 +275,8 @@ private final class ColumnView: NSView {
     let column: Column
     var onSelect: ((UUID) -> Void)?
     var onDrop: ((_ card: UUID, _ column: Column) -> Void)?
+    /// Why dropping the Card here would be refused, asked while it's dragged over.
+    var dropRefusal: ((_ card: UUID, _ column: Column) -> BoardError?)?
     var onOpen: ((UUID) -> Void)?
     var onDiscard: ((UUID) -> Void)?
     private let cards = NSStackView()
@@ -284,6 +287,10 @@ private final class ColumnView: NSView {
     }
     /// Doing above its WIP Limit (after the limit was lowered): the whole Column turns red.
     private var isOverLimit = false {
+        didSet { needsDisplay = true }
+    }
+    /// A Card dragged over a full Doing: shown in the same red, and the drop is refused.
+    private var isRefusingDrop = false {
         didSet { needsDisplay = true }
     }
 
@@ -380,14 +387,26 @@ private final class ColumnView: NSView {
     // MARK: Dropping a Card
 
     /// Not for a Card that's already here: dropping it back is a cancelled drag.
+    /// A drop that would break the WIP Limit is refused here, in red, rather than
+    /// explained afterwards; the Card goes back where it came from.
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard let card = Self.card(in: sender), !contains(card) else { return [] }
+        if case .wipLimitReached = dropRefusal?(card, column) {
+            isRefusingDrop = true
+            return []
+        }
         isDropTarget = true
         return .move
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         isDropTarget = false
+        isRefusingDrop = false
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        isDropTarget = false
+        isRefusingDrop = false
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
@@ -407,16 +426,17 @@ private final class ColumnView: NSView {
 
     // A layer colour doesn't follow appearance changes on its own.
     override func updateLayer() {
-        let background: NSColor = if isDropTarget {
-            .controlAccentColor.withAlphaComponent(0.15)
-        } else if isOverLimit {
+        let showsRed = isRefusingDrop || (isOverLimit && !isDropTarget)
+        let background: NSColor = if showsRed {
             .systemRed.withAlphaComponent(0.18)
+        } else if isDropTarget {
+            .controlAccentColor.withAlphaComponent(0.15)
         } else {
             .quaternaryLabelColor.withAlphaComponent(0.08)
         }
         layer?.backgroundColor = background.cgColor
         layer?.borderColor = NSColor.systemRed.cgColor
-        layer?.borderWidth = isOverLimit && !isDropTarget ? 2 : 0
+        layer?.borderWidth = showsRed ? 2 : 0
     }
 
     override var wantsUpdateLayer: Bool { true }

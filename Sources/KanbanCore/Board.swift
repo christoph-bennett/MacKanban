@@ -103,12 +103,7 @@ public final class Board {
     @discardableResult
     public func move(_ id: UUID, to column: Column) throws -> Change {
         let (card, from) = try cardOnBoard(id)
-        guard Self.allowedMoves.contains([from, column]) else {
-            throw BoardError.moveNotAllowed(from: from, to: column)
-        }
-        if column == .doing, try wipStatus().count >= wipLimit {
-            throw BoardError.wipLimitReached(limit: wipLimit)
-        }
+        if let refusal = try moveRefusal(from: from, to: column) { throw refusal }
         let event = try change {
             let event = try record(.moved, for: card)
             event.setValue(from.rawValue, forKey: "fromColumn")
@@ -116,6 +111,18 @@ public final class Board {
             return event
         }
         return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
+    }
+
+    /// Why moving the Card to `column` would be refused, or `nil` if it's allowed:
+    /// lets the app show it while a Card is dragged, before anything is moved.
+    public func moveRefusal(_ id: UUID, to column: Column) throws -> BoardError? {
+        try moveRefusal(from: cardOnBoard(id).column, to: column)
+    }
+
+    private func moveRefusal(from: Column, to column: Column) throws -> BoardError? {
+        guard Self.allowedMoves.contains([from, column]) else { return .moveNotAllowed(from: from, to: column) }
+        if column == .doing, try wipStatus().count >= wipLimit { return .wipLimitReached(limit: wipLimit) }
+        return nil
     }
 
     public func wipStatus() throws -> WIPStatus {

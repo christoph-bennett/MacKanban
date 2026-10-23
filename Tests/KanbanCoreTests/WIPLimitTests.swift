@@ -72,4 +72,18 @@ struct WIPLimitTests {
     func aStoredWIPLimitOutsideTheRangeBecomesTheDefault(stored: Int) throws {
         #expect(try Board(storeURL: nil, wipLimit: stored).wipLimit == 3)
     }
+
+    @Test func aMoveCanBeCheckedBeforeItIsMade() throws {
+        try board.move(try create("A"), to: .doing)
+        let waiting = try create("B")
+        #expect(try board.moveRefusal(waiting, to: .doing) == nil)
+        #expect(try board.moveRefusal(waiting, to: .done) == .moveNotAllowed(from: .backlog, to: .done))
+
+        try board.move(waiting, to: .doing)  // Doing is full now
+        let third = try create("C")
+        let eventsBefore = try board.events()
+
+        #expect(try board.moveRefusal(third, to: .doing) == .wipLimitReached(limit: 2))
+        #expect(try board.events() == eventsBefore)
+    }
 }
