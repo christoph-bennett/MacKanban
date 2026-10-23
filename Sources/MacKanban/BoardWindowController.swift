@@ -1,65 +1,60 @@
 import AppKit
 import KanbanCore
 
-/// The Board window: the three fixed Columns side by side.
+/// The Board window: a toolbar with New Card above the three fixed Columns.
 @MainActor
-final class BoardWindowController: NSWindowController {
-    init() {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered, defer: false)
+final class BoardWindowController: NSWindowController, NSToolbarDelegate {
+    private let boardView: BoardViewController
+
+    init(board: Board) {
+        boardView = BoardViewController(board: board)
+        let window = NSWindow(contentViewController: boardView)
         window.title = "MacKanban"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 900, height: 600))
         window.minSize = NSSize(width: 600, height: 360)
         window.isReleasedWhenClosed = false
+        super.init(window: window)
+
+        let toolbar = NSToolbar(identifier: "Board")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        // After the toolbar: adding it later would grow the restored frame on every launch.
         window.setFrameAutosaveName("Board")
         if !window.setFrameUsingName("Board") { window.center() }
-
-        let columnViews = Column.allCases.map(ColumnView.init)
-        let columns = NSStackView(views: columnViews)
-        columns.orientation = .horizontal
-        columns.distribution = .fillEqually
-        columns.alignment = .top
-        columns.spacing = 12
-        columns.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
-        window.contentView = columns
-        for view in columnViews {
-            view.heightAnchor.constraint(equalTo: columns.heightAnchor, constant: -32).isActive = true
-        }
-        super.init(window: window)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-}
-
-/// One Column: its title above an area that will hold its Cards.
-@MainActor
-private final class ColumnView: NSView {
-    init(column: Column) {
-        super.init(frame: .zero)
-        wantsLayer = true
-        layer?.cornerRadius = 10
-
-        let title = NSTextField(labelWithString: column.title)
-        title.font = .preferredFont(forTextStyle: .headline)
-        title.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(title)
-        setAccessibilityLabel(column.title)
-        NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            title.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
-        ])
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    // A layer colour doesn't follow appearance changes on its own.
-    override func updateLayer() {
-        layer?.backgroundColor = NSColor.quaternaryLabelColor.withAlphaComponent(0.08).cgColor
+    @objc func newCard(_ sender: Any?) {
+        boardView.newCard()
     }
 
-    override var wantsUpdateLayer: Bool { true }
+    // MARK: NSToolbarDelegate
+
+    private static let newCardItem = NSToolbarItem.Identifier("newCard")
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, Self.newCardItem]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar)
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        guard identifier == Self.newCardItem else { return nil }
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        item.label = "New Card"
+        item.toolTip = "New Card (⌘N)"
+        item.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "New Card")
+        item.isBordered = true
+        item.target = self
+        item.action = #selector(newCard(_:))
+        return item
+    }
 }

@@ -1,13 +1,25 @@
 import AppKit
+import KanbanCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
-    private let board = BoardWindowController()
+    private var board: BoardWindowController?
     private var terminationSignal: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.mainMenu = MainMenu.make(openBoardTarget: self)
+        do {
+            board = BoardWindowController(board: try Board(storeURL: Self.storeURL))
+        } catch {
+            NSApp.activate()
+            let alert = NSAlert(error: error)
+            alert.messageText = "MacKanban can't open its Board."
+            alert.informativeText = "\(error.localizedDescription)\n\nThe store is \(Self.storeURL.path)."
+            alert.runModal()
+            NSApp.terminate(nil)
+            return
+        }
+        NSApp.mainMenu = MainMenu.make(appDelegate: self)
         statusItem = makeStatusItem()
         quitNormallyOnTerminationSignal()
         showBoard()
@@ -25,7 +37,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// `~/Library/Application Support/MacKanban/Board.sqlite` (ADR 0002).
+    private static var storeURL: URL {
+        URL.applicationSupportDirectory.appending(components: "MacKanban", "Board.sqlite")
+    }
+
+    @objc func newCard() {
+        showBoard()
+        board?.newCard(nil)
+    }
+
     @objc func showBoard() {
+        guard let board else { return }  // the store didn't open and MacKanban is quitting
         board.showWindow(nil)
         board.window?.makeKeyAndOrderFront(nil)
         NSApp.activate()

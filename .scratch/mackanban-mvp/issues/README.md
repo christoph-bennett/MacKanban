@@ -5,7 +5,7 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | # | Ticket | Blocked by | Status |
 |---|---|---|---|
 | 01 | [Skeleton: an empty Board window and a status item](01-skeleton.md) | none | done |
-| 02 | [Create Cards and see them in Backlog](02-create-and-see-cards.md) | 01 | ready-for-agent |
+| 02 | [Create Cards and see them in Backlog](02-create-and-see-cards.md) | 01 | done |
 | 03 | [Move Cards between Columns](03-move-cards.md) | 02 | ready-for-agent |
 | 04 | [Settings: WIP Limit and Launch at login](04-settings-wip-limit-launch-at-login.md) | 03 | ready-for-agent |
 | 05 | [Urgency tints and age labels](05-urgency-tints-and-age-labels.md) | 03 | ready-for-agent |

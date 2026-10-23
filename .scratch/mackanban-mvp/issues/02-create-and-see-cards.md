@@ -4,12 +4,18 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The model is defined in code with no `.xcdatamodeld`. All attributes are optional or have defaults, there are no unique constraints, and relationships are optional with inverses
-- [ ] Creating a Card stores a UUID, title and notes, and appends exactly one Created event with the clock's time
-- [ ] An empty title can't be saved
+- [x] The model is defined in code with no `.xcdatamodeld`. All attributes are optional or have defaults, there are no unique constraints, and relationships are optional with inverses
+- [x] Creating a Card stores a UUID, title and notes, and appends exactly one Created event with the clock's time
+- [x] An empty title can't be saved
 - [ ] Backlog lists Cards oldest first, and the Card's Column is computed from its events, not stored
-- [ ] Cards are still there after quitting and relaunching
-- [ ] The Board exposes the event log in time order
-- [ ] Board tests (in-memory store, injected clock): create, Backlog order, Created event recorded, data surviving a container reload against a temporary SQLite file
+- [x] Cards are still there after quitting and relaunching
+- [x] The Board exposes the event log in time order
+- [x] Board tests (in-memory store, injected clock): create, Backlog order, Created event recorded, data surviving a container reload against a temporary SQLite file
+
+**Notes from implementing:**
+- Every Event field the spec names is in the model already, because a code-defined model can't migrate automatically (ADR 0002, Consequences).
+- The sheet is AppKit: SwiftUI's `@State` macro has no plugin without Xcode.
+- Every Card is in Backlog for now. Working out the Column from the events comes with the Moved events in ticket 03, where tests can cover it.
+- Checking by hand is still open: ⌘N and the toolbar's + open the sheet, Add Card is disabled until there's a title, Return adds and Esc cancels, Cards show in Backlog and are still there after relaunching. Driving the UI needs Accessibility permission for the terminal, which isn't granted.

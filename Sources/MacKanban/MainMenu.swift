@@ -4,7 +4,7 @@ import AppKit
 /// text editing shortcuts to the window and its fields.
 @MainActor
 enum MainMenu {
-    static func make(openBoardTarget: AppDelegate) -> NSMenu {
+    static func make(appDelegate: AppDelegate) -> NSMenu {
         let main = NSMenu()
 
         let app = NSMenu()
@@ -14,6 +14,9 @@ enum MainMenu {
         main.addItem(submenu: app, title: "MacKanban")
 
         let file = NSMenu(title: "File")
+        file.addItem(withTitle: "New Card", action: #selector(AppDelegate.newCard), keyEquivalent: "n")
+            .target = appDelegate
+        file.addItem(.separator())
         file.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         main.addItem(submenu: file, title: "File")
 
@@ -31,7 +34,7 @@ enum MainMenu {
         window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         window.addItem(.separator())
         window.addItem(withTitle: "Board", action: #selector(AppDelegate.showBoard), keyEquivalent: "0")
-            .target = openBoardTarget
+            .target = appDelegate
         main.addItem(submenu: window, title: "Window")
         NSApp.windowsMenu = window
 
