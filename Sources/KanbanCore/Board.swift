@@ -6,6 +6,11 @@ public struct Card: Equatable, Identifiable, Sendable {
     public let id: UUID
     public let title: String
     public let notes: String
+    /// From 0 (neutral) to 1 (full red); always 0 in Done (ADR 0001).
+    public let urgency: Double
+    /// What the Card's age label shows: Card Age in Backlog, Column Age in Doing,
+    /// `nil` in Done.
+    public let age: TimeInterval?
 }
 
 /// How full Doing is: shown as "count / limit" in its header.
@@ -182,16 +187,18 @@ public final class Board {
         let placed = try context.fetch(request).map { object in
             let visits = Self.visits(of: object)
             let column = visits.last?.column ?? .backlog
-            // Ascending sort key for the Card's Column.
-            let key: TimeInterval = switch column {
-            case .backlog: (visits.first?.entered ?? .distantPast).timeIntervalSinceReferenceDate
-            case .doing: -visits.timeSpent(in: .doing, until: now)
-            case .done: -(visits.last?.entered ?? .distantPast).timeIntervalSinceReferenceDate
+            let created = visits.first?.entered ?? now
+            let timeInDoing = visits.timeSpent(in: .doing, until: now)
+            // The age the Card's label shows, and the ascending sort key for its Column.
+            let (age, key): (TimeInterval?, TimeInterval) = switch column {
+            case .backlog: (max(0, now.timeIntervalSince(created)), created.timeIntervalSinceReferenceDate)
+            case .doing: (timeInDoing, -timeInDoing)
+            case .done: (nil, -(visits.last?.entered ?? now).timeIntervalSinceReferenceDate)
             }
-            return (object: object, column: column, key: key)
+            return (object: object, column: column, key: key, age: age)
         }
         return Dictionary(grouping: placed, by: \.column).mapValues { cards in
-            cards.sorted { $0.key < $1.key }.compactMap { Self.card($0.object) }
+            cards.sorted { $0.key < $1.key }.compactMap { Self.card($0.object, in: $0.column, age: $0.age) }
         }
     }
 
@@ -245,10 +252,12 @@ public final class Board {
     }
 
     /// `nil` for a row without an ID, which only a damaged or half-synced store has.
-    private static func card(_ object: NSManagedObject) -> Card? {
+    private static func card(_ object: NSManagedObject, in column: Column, age: TimeInterval?) -> Card? {
         guard let id = object.value(forKey: "id") as? UUID else { return nil }
         return Card(id: id,
                     title: object.value(forKey: "title") as? String ?? "",
-                    notes: object.value(forKey: "notes") as? String ?? "")
+                    notes: object.value(forKey: "notes") as? String ?? "",
+                    urgency: age.map { Urgency.of(age: $0, in: column) } ?? 0,
+                    age: age)
     }
 }

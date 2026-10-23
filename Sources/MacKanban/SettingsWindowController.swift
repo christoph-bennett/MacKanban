@@ -12,14 +12,20 @@ final class SettingsWindowController: NSWindowController {
     var onWIPLimitChange: (() -> Void)?
 
     private let board: Board
+    private let defaults: UserDefaults
+    private let offersLaunchAtLogin: Bool
     private let wipLimit = NSPopUpButton()
     private let launchAtLogin = NSButton(checkboxWithTitle: "Open MacKanban at login", target: nil, action: nil)
     private let approvalNote = NSTextField(wrappingLabelWithString: "")
     private var grid: NSGridView!
     private static let approvalRow = 3
 
-    init(board: Board) {
+    /// - Parameter offersLaunchAtLogin: false for a sample store, where opening at
+    ///   login would still register the real app.
+    init(board: Board, defaults: UserDefaults, offersLaunchAtLogin: Bool) {
         self.board = board
+        self.defaults = defaults
+        self.offersLaunchAtLogin = offersLaunchAtLogin
         let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: true)
         window.title = "Settings"
         window.isReleasedWhenClosed = false
@@ -86,7 +92,7 @@ final class SettingsWindowController: NSWindowController {
         // Shown as on while it needs approval: it's still registered, and
         // switching it off here unregisters it.
         launchAtLogin.state = state == .on || state == .needsApproval ? .on : .off
-        launchAtLogin.isEnabled = state != .unavailable
+        launchAtLogin.isEnabled = offersLaunchAtLogin && state != .unavailable
         grid.row(at: Self.approvalRow).isHidden = state != .needsApproval
     }
 
@@ -94,7 +100,7 @@ final class SettingsWindowController: NSWindowController {
         guard let limit = sender.titleOfSelectedItem.flatMap(Int.init) else { return }
         do {
             try board.changeWIPLimit(to: limit)
-            UserDefaults.standard.set(limit, forKey: Self.wipLimitKey)
+            defaults.set(limit, forKey: Self.wipLimitKey)
             onWIPLimitChange?()
         } catch {
             refresh()

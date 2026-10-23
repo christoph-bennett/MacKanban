@@ -11,6 +11,8 @@ let package = Package(
     targets: [
         .target(name: "KanbanCore"),
         .executableTarget(name: "MacKanban", dependencies: ["KanbanCore"]),
+        // A Board with Cards of every age, for screenshots: see its main.swift.
+        .executableTarget(name: "SampleBoard", dependencies: ["KanbanCore"]),
         .testTarget(name: "KanbanCoreTests", dependencies: ["KanbanCore"]),
     ]
 )

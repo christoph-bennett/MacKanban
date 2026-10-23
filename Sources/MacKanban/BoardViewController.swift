@@ -8,6 +8,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     private let board: Board
     private let columnViews = Column.allCases.map { ColumnView(column: $0) }
     private var selectedCard: UUID?
+    private var refreshTimer: Timer?
 
     init(board: Board) {
         self.board = board
@@ -30,6 +31,26 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             view.onDrop = { [weak self] card, column in self?.move(card, to: column) }
         }
         view = columns
+        reload()
+        // Cards age while nothing happens; once a minute keeps tints and labels current.
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshForAge() }
+        }
+    }
+
+    /// Skipped while the window is hidden (it reloads when it appears), while a
+    /// sheet is up (a store error would otherwise stack a new alert every minute),
+    /// and while a mouse button is down (rebuilding the Cards mid-drag would remove
+    /// the Card being dragged). The next tick catches up.
+    private func refreshForAge() {
+        guard let window = view.window, window.isVisible, window.attachedSheet == nil,
+              NSEvent.pressedMouseButtons == 0
+        else { return }
+        reload()
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
         reload()
     }
 
@@ -209,7 +230,7 @@ private final class ColumnView: NSView {
     func show(_ cards: [Card], selected: UUID?) {
         for view in self.cards.arrangedSubviews { view.removeFromSuperview() }
         for card in cards {
-            let view = CardView(card: card, isSelected: card.id == selected)
+            let view = CardView(card: card, in: column, isSelected: card.id == selected)
             view.onSelect = { [weak self] in self?.onSelect?(card.id) }
             self.cards.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: self.cards.widthAnchor, constant: -24).isActive = true
@@ -283,7 +304,7 @@ private final class CardView: NSView, NSDraggingSource {
         }
     }
 
-    init(card: Card, isSelected: Bool) {
+    init(card: Card, in column: Column, isSelected: Bool) {
         self.card = card
         self.isSelected = isSelected
         super.init(frame: .zero)
@@ -291,7 +312,8 @@ private final class CardView: NSView, NSDraggingSource {
         layer?.cornerRadius = 8
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel(card.title)
+        let ageText = card.ageLabel(in: column)
+        setAccessibilityLabel(ageText.map { "\(card.title), \($0)" } ?? card.title)
         setAccessibilitySelected(isSelected)
 
         let title = NSTextField(wrappingLabelWithString: card.title)
@@ -306,6 +328,14 @@ private final class CardView: NSView, NSDraggingSource {
             notes.maximumNumberOfLines = 3
             notes.lineBreakMode = .byTruncatingTail
             stack.addArrangedSubview(notes)
+        }
+        if let ageText {
+            let age = NSTextField(labelWithString: ageText)
+            age.font = .monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .medium)
+            age.textColor = .secondaryLabelColor
+            age.alignment = .right
+            age.isSelectable = false
+            stack.addArrangedSubview(age)
         }
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -358,10 +388,25 @@ private final class CardView: NSView, NSDraggingSource {
         return image
     }
 
+    // Called with the view's appearance current, so the system colours resolve
+    // for light or dark before they're mixed.
     override func updateLayer() {
-        layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        layer?.borderColor = (isSelected ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
+        let urgency = CGFloat(card.urgency)
+        let tint = Self.tint(for: urgency)
+        layer?.backgroundColor = Self.mix(.controlBackgroundColor, tint, urgency * 0.45).cgColor
+        let border = isSelected ? NSColor.controlAccentColor : Self.mix(.separatorColor, tint, urgency)
+        layer?.borderColor = border.cgColor
         layer?.borderWidth = isSelected ? 2 : 1
+    }
+
+    /// Amber, turning red over the second half of the Urgency range.
+    private static func tint(for urgency: CGFloat) -> NSColor {
+        mix(.systemOrange, .systemRed, max(0, urgency - 0.5) * 2)
+    }
+
+    private static func mix(_ base: NSColor, _ other: NSColor, _ fraction: CGFloat) -> NSColor {
+        guard let base = base.usingColorSpace(.sRGB), let other = other.usingColorSpace(.sRGB) else { return base }
+        return base.blended(withFraction: fraction, of: other) ?? base
     }
 
     override var wantsUpdateLayer: Bool { true }
@@ -370,4 +415,17 @@ private final class CardView: NSView, NSDraggingSource {
 /// Lays the Cards out from the top of the scroll view, not the bottom.
 private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
+}
+
+private extension Card {
+    /// "12d" in Backlog, "4d in Doing" in Doing, hours under a day; none in Done.
+    func ageLabel(in column: Column) -> String? {
+        guard let age else { return nil }
+        let text = switch age {
+        case ..<3_600: "<1h"
+        case ..<86_400: "\(Int(age / 3_600))h"
+        default: "\(Int(age / 86_400))d"
+        }
+        return column == .doing ? "\(text) in Doing" : text
+    }
 }

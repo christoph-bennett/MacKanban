@@ -9,12 +9,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var terminationSignal: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let defaults = UserDefaults.standard
+        // A store other than the real one gets its own settings, so trying things
+        // on a sample Board can't change the real WIP Limit.
+        let isRealStore = Self.storeOverride == nil
+        let defaults = isRealStore ? UserDefaults.standard : UserDefaults(suiteName: "com.onethingwell.mackanban.sample")!
         defaults.register(defaults: [SettingsWindowController.wipLimitKey: Board.defaultWIPLimit])
         do {
             let model = try Board(storeURL: Self.storeURL, wipLimit: defaults.integer(forKey: SettingsWindowController.wipLimitKey))
             let board = BoardWindowController(board: model)
-            let settings = SettingsWindowController(board: model)
+            let settings = SettingsWindowController(board: model, defaults: defaults, offersLaunchAtLogin: isRealStore)
             settings.onWIPLimitChange = { [weak board] in board?.reload() }
             self.board = board
             self.settings = settings
@@ -45,9 +48,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    /// `~/Library/Application Support/MacKanban/Board.sqlite` (ADR 0002).
+    /// `~/Library/Application Support/MacKanban/Board.sqlite` (ADR 0002), unless
+    /// `MACKANBAN_STORE` names another file (screenshots, trying things by hand).
     private static var storeURL: URL {
-        URL.applicationSupportDirectory.appending(components: "MacKanban", "Board.sqlite")
+        storeOverride ?? URL.applicationSupportDirectory.appending(components: "MacKanban", "Board.sqlite")
+    }
+
+    /// An app opened from Finder or `open` runs in `/`, so a relative path would
+    /// point somewhere unexpected; `~` is expanded, other relative paths are refused.
+    private static var storeOverride: URL? {
+        guard let path = ProcessInfo.processInfo.environment["MACKANBAN_STORE"], !path.isEmpty else { return nil }
+        let expanded = (path as NSString).expandingTildeInPath
+        guard expanded.hasPrefix("/") else {
+            NSLog("MacKanban: MACKANBAN_STORE must be an absolute path, got \(path)")
+            return URL(fileURLWithPath: "/nonexistent/\(path)")  // fails to open, with the alert explaining
+        }
+        return URL(fileURLWithPath: expanded)
     }
 
     @objc func newCard() {

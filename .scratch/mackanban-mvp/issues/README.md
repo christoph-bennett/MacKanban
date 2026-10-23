@@ -8,7 +8,7 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 02 | [Create Cards and see them in Backlog](02-create-and-see-cards.md) | 01 | done |
 | 03 | [Move Cards between Columns](03-move-cards.md) | 02 | done |
 | 04 | [Settings: WIP Limit and Launch at login](04-settings-wip-limit-launch-at-login.md) | 03 | done |
-| 05 | [Urgency tints and age labels](05-urgency-tints-and-age-labels.md) | 03 | ready-for-agent |
+| 05 | [Urgency tints and age labels](05-urgency-tints-and-age-labels.md) | 03 | done |
 | 06 | [Edit and Discard Cards](06-edit-and-discard.md) | 02 | ready-for-agent |
 | 07 | [Undo](07-undo.md) | 03, 06 | ready-for-agent |
 | 08 | [Capacity and the Capacity gauge](08-capacity-gauge.md) | 05, 06 | ready-for-agent |

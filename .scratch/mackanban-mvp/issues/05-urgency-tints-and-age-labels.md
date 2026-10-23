@@ -4,10 +4,16 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Board queries expose Urgency and age per Card, computed from the events and never stored
-- [ ] Tints go smoothly from neutral through amber to red in both light and dark mode
-- [ ] Age labels appear on every Open Card, and Done Cards have neither a tint nor a label
-- [ ] The display updates at least once a minute without user action
-- [ ] Board tests: a Backlog Card 3 days old has Urgency 0, 12 days 0.5 and 30 days 1. A 30-day-old Card 1 day into Doing has Urgency 0. Column Age adds up across visits
+- [x] Board queries expose Urgency and age per Card, computed from the events and never stored
+- [x] Tints go smoothly from neutral through amber to red in both light and dark mode
+- [x] Age labels appear on every Open Card, and Done Cards have neither a tint nor a label
+- [x] The display updates at least once a minute without user action
+- [x] Board tests: a Backlog Card 3 days old has Urgency 0, 12 days 0.5 and 30 days 1. A 30-day-old Card 1 day into Doing has Urgency 0. Column Age adds up across visits
+
+**Notes from implementing:**
+- Checked by screenshot on a sample Board (`SampleBoard`, see CLAUDE.md) in light mode: neutral, amber and red tints, labels in Backlog and Doing, none in Done. Dark mode isn't checked yet.
+- The tint mixes the system card colour with amber, then red, resolved for the view's appearance. Background up to 45 % tint, border the full tint colour.
+- The minute refresh skips while the window is hidden, while a sheet is up, and while a mouse button is down (so a drag isn't broken).
+- `MACKANBAN_STORE` opens another store with its own settings (no Launch at login), for screenshots and trying things by hand.
