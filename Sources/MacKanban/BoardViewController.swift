@@ -60,6 +60,10 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     func reload() {
         do {
             let columns = try board.columns()
+            // A Card that left the Board (Discarded, or an undone creation) can't stay selected.
+            if let selectedCard, !columns.values.contains(where: { $0.contains { $0.id == selectedCard } }) {
+                self.selectedCard = nil
+            }
             for view in columnViews {
                 view.show(columns[view.column] ?? [], selected: selectedCard)
             }
@@ -71,7 +75,11 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     }
 
     func newCard() {
-        presentCardSheet(.new) { [board] title, notes in try board.createCard(title: title, notes: notes) }
+        presentCardSheet(.new) { [weak self] title, notes in
+            guard let self else { return }
+            let id = UUID()  // kept for redo, so later redos still find the Card
+            try undoably("New Card") { [board] in try board.createCard(title: title, notes: notes, id: id) }
+        }
     }
 
     /// Opens the Card's sheet: editable in Backlog and Doing, read-only in Done.
@@ -105,7 +113,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
 
     private func discard(_ id: UUID) {
         do {
-            try board.discard(id)
+            try undoably("Discard") { [board] in try board.discard(id) }
             if selectedCard == id { selectedCard = nil }
             reload()
         } catch {
@@ -147,12 +155,44 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
 
     private func move(_ card: UUID, to column: Column) {
         do {
-            try board.move(card, to: column)
+            try undoably("Move") { [board] in try board.move(card, to: column) }
             selectedCard = card
             reload()
         } catch {
             show(error)
         }
+    }
+
+    // MARK: Undo
+
+    /// Runs `operation` and registers its undo with the window. Undo reverts what it
+    /// recorded (the Board deletes the events, ADR 0002); redo runs it again.
+    private func undoably(_ actionName: String, _ operation: @escaping () throws -> Change) throws {
+        let change = try operation()
+        guard let undoManager = view.window?.undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { controller in
+            controller.undo(change, actionName: actionName, redo: operation)
+        }
+        undoManager.setActionName(actionName)
+    }
+
+    private func undo(_ change: Change, actionName: String, redo: @escaping () throws -> Change) {
+        do {
+            try board.revert(change)
+        } catch {
+            return show(error)
+        }
+        reload()
+        guard let undoManager = view.window?.undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { controller in
+            do {
+                try controller.undoably(actionName, redo)
+                controller.reload()
+            } catch {
+                controller.show(error)
+            }
+        }
+        undoManager.setActionName(actionName)
     }
 
     /// The Column the selected Card is in, if a Card is selected.

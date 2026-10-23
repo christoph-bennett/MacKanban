@@ -35,6 +35,8 @@ public enum BoardError: LocalizedError, Equatable {
     case wipLimitReached(limit: Int)
     case wipLimitOutOfRange
     case cardIsDone
+    case cannotUndo
+    case cardExists
 
     public var errorDescription: String? {
         switch self {
@@ -46,6 +48,8 @@ public enum BoardError: LocalizedError, Equatable {
         case let .moveNotAllowed(from, to): "Cards can't move from \(from.title) to \(to.title)."
         case let .wipLimitReached(limit): "Doing is at its WIP Limit of \(limit). Finish a Card before starting another."
         case .cardIsDone: "Done Cards stay as they were finished."
+        case .cardExists: "A Card with this ID already exists."
+        case .cannotUndo: "This can't be undone any more: the Card has changed since."
         case .wipLimitOutOfRange: "The WIP Limit is between \(Board.wipLimits.lowerBound) and \(Board.wipLimits.upperBound)."
         }
     }
@@ -79,19 +83,25 @@ public final class Board {
         self.now = now
     }
 
-    public func createCard(title: String, notes: String) throws {
+    /// - Parameter id: a new Card gets a new ID; redoing an undone creation passes
+    ///   the old one, so later redos (a move, a Discard) still find the Card.
+    @discardableResult
+    public func createCard(title: String, notes: String, id: UUID = UUID()) throws -> Change {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { throw BoardError.emptyTitle }
-        try change {
+        guard try context.count(for: Self.cardRequest(id)) == 0 else { throw BoardError.cardExists }
+        let event = try change {
             let card = NSManagedObject(entity: StoreModel.shared.entitiesByName["Card"]!, insertInto: context)
-            card.setValue(UUID(), forKey: "id")
+            card.setValue(id, forKey: "id")
             card.setValue(title, forKey: "title")
             card.setValue(notes.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "notes")
-            try record(.created, for: card)
+            return try record(.created, for: card)
         }
+        return Change(cardID: id, isCreation: true, event: event.objectID.uriRepresentation())
     }
 
-    public func move(_ id: UUID, to column: Column) throws {
+    @discardableResult
+    public func move(_ id: UUID, to column: Column) throws -> Change {
         let (card, from) = try cardOnBoard(id)
         guard Self.allowedMoves.contains([from, column]) else {
             throw BoardError.moveNotAllowed(from: from, to: column)
@@ -99,11 +109,13 @@ public final class Board {
         if column == .doing, try wipStatus().count >= wipLimit {
             throw BoardError.wipLimitReached(limit: wipLimit)
         }
-        try change {
+        let event = try change {
             let event = try record(.moved, for: card)
             event.setValue(from.rawValue, forKey: "fromColumn")
             event.setValue(column.rawValue, forKey: "toColumn")
+            return event
         }
+        return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
     }
 
     public func wipStatus() throws -> WIPStatus {
@@ -148,11 +160,37 @@ public final class Board {
 
     /// Takes an Open Card off the Board for good. It stays in the event log, but
     /// it isn't a completion: it never counts as Throughput (ADR 0001).
-    public func discard(_ id: UUID) throws {
+    @discardableResult
+    public func discard(_ id: UUID) throws -> Change {
         let (card, column) = try cardOnBoard(id)
         guard column != .done else { throw BoardError.cardIsDone }
-        try change {
-            try record(.discarded, for: card)
+        let event = try change { try record(.discarded, for: card) }
+        return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
+    }
+
+    /// How long after an operation it can still be undone. Undo is for slips
+    /// straight after they happen, not for rewriting history (ADR 0002).
+    public nonisolated static let undoWindow: TimeInterval = 15 * 60
+
+    /// Undoes `change` by deleting the event it recorded, so the slip never shows up
+    /// in the history (ADR 0002). Refused once the Card has moved on since (its
+    /// Column history has a newer event; Edited events don't count), after
+    /// `undoWindow`, or when it would put Doing over the WIP Limit.
+    public func revert(_ change: Change) throws {
+        let card = try anyCard(change.cardID)
+        let history = Self.history(of: card)
+        let placing = history.filter { $0.value(forKey: "kind") as? String != Event.Kind.edited.rawValue }
+        guard let event = placing.last, event.objectID.uriRepresentation() == change.event,
+              !change.isCreation || placing.count == 1,
+              let time = event.value(forKey: "timestamp") as? Date, now().timeIntervalSince(time) <= Self.undoWindow
+        else { throw BoardError.cannotUndo }
+
+        let restored = Self.column(after: Self.visits(of: history.filter { $0 != event }))
+        if restored == .doing, Self.column(of: card) != .doing, try wipStatus().count >= wipLimit {
+            throw BoardError.wipLimitReached(limit: wipLimit)
+        }
+        try self.change {
+            context.delete(change.isCreation ? card : event)  // a Card's events go with it
         }
     }
 
@@ -180,23 +218,33 @@ public final class Board {
         return max(now(), latest.addingTimeInterval(0.001))
     }
 
-    /// The Card and its Column, if it's on the Board: Discarded Cards aren't.
-    private func cardOnBoard(_ id: UUID) throws -> (card: NSManagedObject, column: Column) {
+    /// The Card, on the Board or Discarded.
+    private func anyCard(_ id: UUID) throws -> NSManagedObject {
+        guard let card = try context.fetch(Self.cardRequest(id)).first else { throw BoardError.cardNotFound }
+        return card
+    }
+
+    private static func cardRequest(_ id: UUID) -> NSFetchRequest<NSManagedObject> {
         let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         request.fetchLimit = 1
-        guard let card = try context.fetch(request).first, let column = Self.column(of: card) else {
-            throw BoardError.cardNotFound
-        }
+        return request
+    }
+
+    /// The Card and its Column, if it's on the Board: Discarded Cards aren't.
+    private func cardOnBoard(_ id: UUID) throws -> (card: NSManagedObject, column: Column) {
+        let card = try anyCard(id)
+        guard let column = Self.column(of: card) else { throw BoardError.cardNotFound }
         return (card, column)
     }
 
     /// Makes `changes` and saves them, or drops all of them if any step fails,
     /// so the Board never shows or later saves half an operation.
-    private func change(_ changes: () throws -> Void) throws {
+    private func change<Result>(_ changes: () throws -> Result) throws -> Result {
         do {
-            try changes()
+            let result = try changes()
             try context.save()
+            return result
         } catch {
             context.rollback()
             throw error
@@ -272,8 +320,13 @@ public final class Board {
     /// The Card's Column Visits, replayed from its Created, Moved and Discarded
     /// events. Discarding ends the last visit without starting another.
     private static func visits(of card: NSManagedObject) -> [ColumnVisit] {
+        visits(of: history(of: card))
+    }
+
+    /// The Column Visits that `history` (events in time order) adds up to.
+    private static func visits(of history: [NSManagedObject]) -> [ColumnVisit] {
         var visits: [ColumnVisit] = []
-        for event in history(of: card) {
+        for event in history {
             guard let time = event.value(forKey: "timestamp") as? Date else { continue }
             switch (event.value(forKey: "kind") as? String).flatMap(Event.Kind.init) {
             case .created:

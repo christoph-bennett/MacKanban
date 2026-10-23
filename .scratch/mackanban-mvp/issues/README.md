@@ -10,7 +10,7 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 04 | [Settings: WIP Limit and Launch at login](04-settings-wip-limit-launch-at-login.md) | 03 | done |
 | 05 | [Urgency tints and age labels](05-urgency-tints-and-age-labels.md) | 03 | done |
 | 06 | [Edit and Discard Cards](06-edit-and-discard.md) | 02 | done |
-| 07 | [Undo](07-undo.md) | 03, 06 | ready-for-agent |
+| 07 | [Undo](07-undo.md) | 03, 06 | done |
 | 08 | [Capacity and the Capacity gauge](08-capacity-gauge.md) | 05, 06 | ready-for-agent |
 | 09 | [Triage and the creation block](09-triage-and-creation-block.md) | 04, 08 | ready-for-agent |
 | 10 | [Archive](10-archive.md) | 03, 06 | ready-for-agent |

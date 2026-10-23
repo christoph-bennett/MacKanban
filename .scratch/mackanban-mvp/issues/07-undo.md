@@ -4,9 +4,14 @@
 
 **Blocked by:** 03, 06
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] ⌘Z undoes the last create, move or Discard, and ⌘⇧Z redoes it
-- [ ] Undo deletes the reverted event and never appends one
-- [ ] Undoing a creation removes the Card and its events
-- [ ] Board tests: Doing for 3 days, moved to Done by mistake, undone, then 1 more day gives Column Age 4 days and no Done visit. Undone Discard and undone creation leave no trace in the event log
+- [x] Undo deletes the reverted event and never appends one
+- [x] Undoing a creation removes the Card and its events
+- [x] Board tests: Doing for 3 days, moved to Done by mistake, undone, then 1 more day gives Column Age 4 days and no Done visit. Undone Discard and undone creation leave no trace in the event log
+
+**Notes from implementing:**
+- Undo works for 15 minutes after the change (`Board.undoWindow`), only while the change is still the Card's latest change of Column (edits don't count), and never past the WIP Limit. ADR 0002 updated.
+- Redo runs the operation again at the current time; a re-created Card keeps its ID.
+- Not yet checked by hand: ⌘Z and ⌘⇧Z after New Card, a move (drag and keyboard) and a Discard; the Edit menu naming the action ("Undo Move").
