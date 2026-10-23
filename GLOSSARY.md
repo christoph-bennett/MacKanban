@@ -33,8 +33,16 @@ One piece of work on the Board, made up of a title and optional notes.
 _Avoid_: Item, todo, task, ticket
 
 **Column Visit**:
-One stretch of time a Card spent in a Column, from when it entered to when it left. A Card's Column Visits are its full history on the Board.
+One stretch of time a Card spent in a Column, from when it entered to when it left. It follows from the Card's Card Events.
 _Avoid_: Transition, move, history entry
+
+**Card Event**:
+A recorded fact about one Card at a point in time: Created, Moved (from one Column to another), Edited, Discarded or Triaged (with its outcome). A Card's Card Events are its complete history. Edited records only that an edit happened, not what changed. Leaving the Board for the Archive is not a Card Event, because it follows from a rule rather than happening.
+_Avoid_: Activity, log entry, change, transition
+
+**Board Event**:
+A recorded fact about the Board rather than one Card: Creation Blocked (with the Capacity and Open Card count at that moment) or WIP Limit Changed.
+_Avoid_: System event, audit entry
 
 **Open Card**:
 A Card in Backlog or Doing.
@@ -77,5 +85,5 @@ The maximum number of Open Cards the Board allows right now. It rises with Throu
 _Avoid_: Creation limit, backlog limit, quota
 
 **Triage**:
-The step forced on the user before creating a Card when Capacity is nearly used up. They are shown the Open Card with the highest Urgency and must start it, Discard it or explicitly keep it. Keeping a Card does not change its Urgency.
+The step forced on the user before creating a Card when Capacity is nearly used up. They are shown the Open Card with the highest Urgency and must start it, Discard it or explicitly keep it, or dismiss the sheet without creating anything. Keeping a Card does not change its Urgency.
 _Avoid_: Review, check-in
