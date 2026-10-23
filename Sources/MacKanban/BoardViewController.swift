@@ -242,6 +242,10 @@ private final class ColumnView: NSView {
     private var isDropTarget = false {
         didSet { needsDisplay = true }
     }
+    /// Doing above its WIP Limit (after the limit was lowered): the whole Column turns red.
+    private var isOverLimit = false {
+        didSet { needsDisplay = true }
+    }
 
     init(column: Column) {
         self.column = column
@@ -315,6 +319,7 @@ private final class ColumnView: NSView {
     func showCount(_ text: String, isWarning: Bool) {
         count.stringValue = text
         count.textColor = isWarning ? .systemRed : .secondaryLabelColor
+        isOverLimit = isWarning
         count.setAccessibilityLabel(isWarning ? "\(text), over the WIP Limit" : text)
     }
 
@@ -362,8 +367,16 @@ private final class ColumnView: NSView {
 
     // A layer colour doesn't follow appearance changes on its own.
     override func updateLayer() {
-        layer?.backgroundColor = (isDropTarget ? NSColor.controlAccentColor.withAlphaComponent(0.15)
-            : NSColor.quaternaryLabelColor.withAlphaComponent(0.08)).cgColor
+        let background: NSColor = if isDropTarget {
+            .controlAccentColor.withAlphaComponent(0.15)
+        } else if isOverLimit {
+            .systemRed.withAlphaComponent(0.18)
+        } else {
+            .quaternaryLabelColor.withAlphaComponent(0.08)
+        }
+        layer?.backgroundColor = background.cgColor
+        layer?.borderColor = NSColor.systemRed.cgColor
+        layer?.borderWidth = isOverLimit && !isDropTarget ? 2 : 0
     }
 
     override var wantsUpdateLayer: Bool { true }

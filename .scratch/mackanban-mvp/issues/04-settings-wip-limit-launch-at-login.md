@@ -17,3 +17,4 @@
 - Settings is AppKit: a WIP Limit change goes through the Board, which records the WIP Limit Changed event.
 - A stored WIP Limit outside 1–5 falls back to 3 (Board test).
 - Not yet checked by hand: ⌘, and Settings… in the status item menu, changing the WIP Limit (the Doing header follows, red when lowered below the count), the refusal sheet when starting at the limit, Launch at login on and off.
+- Amended after trying it: over the limit, the whole Doing Column turns red (tinted background and a red outline), not only the count.
