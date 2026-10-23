@@ -6,7 +6,7 @@
 
 **Status:** done
 
-- [ ] Backlog → Doing, Doing → Done and Doing → Backlog work by drag and drop and by keyboard
+- [x] Backlog → Doing, Doing → Done and Doing → Backlog work by drag and drop and by keyboard
 - [x] Moves out of Done and Backlog → Done are refused with a typed error, shown as a message, and record no event
 - [x] Every allowed move appends one Moved event with from and to
 - [x] Doing is sorted by accumulated Column Age (longest first), Done newest first, Backlog oldest first
@@ -16,4 +16,4 @@
 - Event timestamps are strictly increasing, at least 1 ms after the latest event, because the log has no sequence number (ADR 0002).
 - Keyboard: ⌘→ and ⌘← (Card menu) move the clicked Card. Off the Board's edge the menu item is disabled; other refused moves show the Board's explanation as a sheet.
 - Dropping a Card back on its own Column is ignored quietly.
-- Not yet checked by hand (needs Accessibility for the terminal to drive the UI): drag and drop between Columns, ⌘→/⌘←, the error sheet for Backlog → Done, the selection border.
+- Checked by hand by Christoph on 2026-10-23.

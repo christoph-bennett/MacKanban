@@ -6,7 +6,7 @@
 
 **Status:** done
 
-- [ ] The pencil button, double-click and Return open the edit sheet for Backlog and Doing Cards. Done Cards have no pencil, and double-click opens them read-only
+- [x] The pencil button, double-click and Return open the edit sheet for Backlog and Doing Cards. Done Cards have no pencil, and double-click opens them read-only
 - [x] One Edited event per committed change, none when nothing changed, and no text is stored in the event
 - [x] Card Age and Column Age are unchanged by editing
 - [x] Discard removes an Open Card from the Board and appends one Discarded event. Done Cards can't be Discarded
@@ -17,4 +17,4 @@
 - Return in the notes field starts a new line; Return in the title field saves.
 - The Card menu (Edit Card… / Open Card… for Done, Discard Card ⌘⌫, moves) is off while a sheet is up, so shortcuts typed in the sheet can't act on the Card being edited.
 - Discard has no confirmation: ⌘Z (ticket 07) makes it reversible. Until 07 lands, a Discard can't be taken back.
-- Not yet checked by hand: the pencil on hover only, double-click, Return on a selected Card, the context menu, ⌘⌫, the read-only sheet for a Done Card.
+- Checked by hand by Christoph on 2026-10-23.
