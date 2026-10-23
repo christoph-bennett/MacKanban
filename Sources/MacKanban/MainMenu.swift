@@ -30,6 +30,14 @@ enum MainMenu {
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         main.addItem(submenu: edit, title: "Edit")
 
+        let card = NSMenu(title: "Card")
+        // ⌘→ and ⌘←: the selected Card moves the way the Columns read.
+        card.addItem(withTitle: "Move to Next Column", action: #selector(BoardViewController.moveToNextColumn(_:)),
+                     keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
+        card.addItem(withTitle: "Move to Previous Column", action: #selector(BoardViewController.moveToPreviousColumn(_:)),
+                     keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        main.addItem(submenu: card, title: "Card")
+
         let window = NSMenu(title: "Window")
         window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         window.addItem(.separator())

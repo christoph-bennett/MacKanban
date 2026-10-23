@@ -1,11 +1,13 @@
 import AppKit
 import KanbanCore
 
-/// The three Columns side by side, each listing its Cards.
+/// The three Columns side by side, each listing its Cards. A clicked Card is
+/// selected; ⌘→ and ⌘← (the Card menu) or dragging move it between Columns.
 @MainActor
-final class BoardViewController: NSViewController {
+final class BoardViewController: NSViewController, NSMenuItemValidation {
     private let board: Board
     private let columnViews = Column.allCases.map { ColumnView(column: $0) }
+    private var selectedCard: UUID?
 
     init(board: Board) {
         self.board = board
@@ -16,7 +18,7 @@ final class BoardViewController: NSViewController {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override func loadView() {
-        let columns = NSStackView(views: columnViews)
+        let columns = BoardView(views: columnViews)
         columns.orientation = .horizontal
         columns.distribution = .fillEqually
         columns.alignment = .top
@@ -24,6 +26,8 @@ final class BoardViewController: NSViewController {
         columns.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         for view in columnViews {
             view.heightAnchor.constraint(equalTo: columns.heightAnchor, constant: -32).isActive = true
+            view.onSelect = { [weak self] card in self?.select(card) }
+            view.onDrop = { [weak self] card, column in self?.move(card, to: column) }
         }
         view = columns
         reload()
@@ -31,11 +35,12 @@ final class BoardViewController: NSViewController {
 
     func reload() {
         do {
+            let columns = try board.columns()
             for view in columnViews {
-                view.show(try board.cards(in: view.column))
+                view.show(columns[view.column] ?? [], selected: selectedCard)
             }
         } catch {
-            presentError(error)
+            show(error)
         }
     }
 
@@ -54,13 +59,93 @@ final class BoardViewController: NSViewController {
         }
         presentAsSheet(sheet)
     }
+
+    /// Only redraws the selection: rebuilding the Card views would replace the
+    /// one being clicked, and a drag starting from it would have no window.
+    private func select(_ card: UUID) {
+        selectedCard = card
+        view.window?.makeFirstResponder(view)  // so the Card menu's shortcuts reach this controller
+        for view in columnViews { view.select(card) }
+    }
+
+    private func move(_ card: UUID, to column: Column) {
+        do {
+            try board.move(card, to: column)
+            selectedCard = card
+            reload()
+        } catch {
+            show(error)
+        }
+    }
+
+    /// The Column the selected Card is in, if a Card is selected.
+    private var selectedColumn: Column? {
+        columnViews.first { $0.contains(selectedCard) }?.column
+    }
+
+    @objc func moveToNextColumn(_ sender: Any?) {
+        step(by: 1)
+    }
+
+    @objc func moveToPreviousColumn(_ sender: Any?) {
+        step(by: -1)
+    }
+
+    /// Moves the selected Card one Column right or left. Off the Board's edge
+    /// there's nothing to explain, so it only beeps; the Board explains the rest.
+    private func step(by offset: Int) {
+        guard let selectedCard, let target = column(by: offset) else { return NSSound.beep() }
+        move(selectedCard, to: target)
+    }
+
+    /// The Column `offset` steps from the selected Card's, if the Board has one there.
+    private func column(by offset: Int) -> Column? {
+        guard let column = selectedColumn, let index = Column.allCases.firstIndex(of: column),
+              Column.allCases.indices.contains(index + offset)
+        else { return nil }
+        return Column.allCases[index + offset]
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(moveToNextColumn(_:)): column(by: 1) != nil
+        case #selector(moveToPreviousColumn(_:)): column(by: -1) != nil
+        default: true
+        }
+    }
+
+    /// A refused move or a store error, as a sheet on the Board window.
+    private func show(_ error: Error) {
+        if let window = view.window {
+            NSAlert(error: error).beginSheetModal(for: window)
+        } else {
+            presentError(error)
+        }
+    }
+}
+
+/// The Board's content view. It takes first responder when a Card is clicked,
+/// which puts the view controller in the responder chain for the Card menu.
+private final class BoardView: NSStackView {
+    override var acceptsFirstResponder: Bool { true }
+}
+
+private extension NSPasteboard.PasteboardType {
+    /// A dragged Card: its ID as a string. Only meaningful inside MacKanban.
+    static let card = NSPasteboard.PasteboardType("com.onethingwell.mackanban.card")
 }
 
 /// One Column: its title above its Cards, which scroll when they don't fit.
 @MainActor
 private final class ColumnView: NSView {
     let column: Column
+    var onSelect: ((UUID) -> Void)?
+    var onDrop: ((_ card: UUID, _ column: Column) -> Void)?
     private let cards = NSStackView()
+    private var cardIDs: [UUID] { cards.arrangedSubviews.compactMap { ($0 as? CardView)?.card.id } }
+    private var isDropTarget = false {
+        didSet { needsDisplay = true }
+    }
 
     init(column: Column) {
         self.column = column
@@ -68,6 +153,7 @@ private final class ColumnView: NSView {
         wantsLayer = true
         layer?.cornerRadius = 10
         setAccessibilityLabel(column.title)
+        registerForDraggedTypes([.card])
 
         let title = NSTextField(labelWithString: column.title)
         title.font = .preferredFont(forTextStyle: .headline)
@@ -112,33 +198,86 @@ private final class ColumnView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func show(_ cards: [Card]) {
+    func show(_ cards: [Card], selected: UUID?) {
         for view in self.cards.arrangedSubviews { view.removeFromSuperview() }
         for card in cards {
-            let view = CardView(card: card)
+            let view = CardView(card: card, isSelected: card.id == selected)
+            view.onSelect = { [weak self] in self?.onSelect?(card.id) }
             self.cards.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: self.cards.widthAnchor, constant: -24).isActive = true
         }
     }
 
+    func contains(_ card: UUID?) -> Bool {
+        card.map(cardIDs.contains) ?? false
+    }
+
+    func select(_ card: UUID) {
+        for case let view as CardView in cards.arrangedSubviews {
+            view.isSelected = view.card.id == card
+        }
+    }
+
+    // MARK: Dropping a Card
+
+    /// Not for a Card that's already here: dropping it back is a cancelled drag.
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard let card = Self.card(in: sender), !contains(card) else { return [] }
+        isDropTarget = true
+        return .move
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        isDropTarget = false
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        isDropTarget = false
+        guard let card = Self.card(in: sender), !contains(card) else { return false }
+        // The Board decides whether the move is allowed and explains when it isn't.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            onDrop?(card, column)
+        }
+        return true
+    }
+
+    private static func card(in info: NSDraggingInfo) -> UUID? {
+        info.draggingPasteboard.string(forType: .card).flatMap(UUID.init)
+    }
+
     // A layer colour doesn't follow appearance changes on its own.
     override func updateLayer() {
-        layer?.backgroundColor = NSColor.quaternaryLabelColor.withAlphaComponent(0.08).cgColor
+        layer?.backgroundColor = (isDropTarget ? NSColor.controlAccentColor.withAlphaComponent(0.15)
+            : NSColor.quaternaryLabelColor.withAlphaComponent(0.08)).cgColor
     }
 
     override var wantsUpdateLayer: Bool { true }
 }
 
-/// A Card on the Board: its title, and the start of its notes.
+/// A Card on the Board: its title, and the start of its notes. Click to select
+/// it, drag it to another Column to move it.
 @MainActor
-private final class CardView: NSView {
-    init(card: Card) {
+private final class CardView: NSView, NSDraggingSource {
+    var onSelect: (() -> Void)?
+    let card: Card
+    var isSelected: Bool {
+        didSet {
+            needsDisplay = true
+            setAccessibilitySelected(isSelected)
+        }
+    }
+
+    init(card: Card, isSelected: Bool) {
+        self.card = card
+        self.isSelected = isSelected
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 8
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel(card.title)
+        setAccessibilitySelected(isSelected)
 
         let title = NSTextField(wrappingLabelWithString: card.title)
         title.font = .preferredFont(forTextStyle: .body)
@@ -171,10 +310,35 @@ private final class CardView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    override func mouseDown(with event: NSEvent) {
+        onSelect?()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let item = NSPasteboardItem()
+        item.setString(card.id.uuidString, forType: .card)
+        let dragged = NSDraggingItem(pasteboardWriter: item)
+        dragged.setDraggingFrame(bounds, contents: snapshot())
+        beginDraggingSession(with: [dragged], event: event, source: self)
+    }
+
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        context == .withinApplication ? .move : []
+    }
+
+    private func snapshot() -> NSImage {
+        let image = NSImage(size: bounds.size)
+        if let bitmap = bitmapImageRepForCachingDisplay(in: bounds) {
+            cacheDisplay(in: bounds, to: bitmap)
+            image.addRepresentation(bitmap)
+        }
+        return image
+    }
+
     override func updateLayer() {
         layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        layer?.borderColor = NSColor.separatorColor.cgColor
-        layer?.borderWidth = 1
+        layer?.borderColor = (isSelected ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
+        layer?.borderWidth = isSelected ? 2 : 1
     }
 
     override var wantsUpdateLayer: Bool { true }
