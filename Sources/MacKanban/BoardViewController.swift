@@ -39,6 +39,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             for view in columnViews {
                 view.show(columns[view.column] ?? [], selected: selectedCard)
             }
+            let wip = WIPStatus(count: columns[.doing]?.count ?? 0, limit: board.wipLimit)
+            columnViews.first { $0.column == .doing }?.showCount("\(wip.count) / \(wip.limit)", isWarning: wip.isOverLimit)
         } catch {
             show(error)
         }
@@ -142,6 +144,7 @@ private final class ColumnView: NSView {
     var onSelect: ((UUID) -> Void)?
     var onDrop: ((_ card: UUID, _ column: Column) -> Void)?
     private let cards = NSStackView()
+    private let count = NSTextField(labelWithString: "")
     private var cardIDs: [UUID] { cards.arrangedSubviews.compactMap { ($0 as? CardView)?.card.id } }
     private var isDropTarget = false {
         didSet { needsDisplay = true }
@@ -159,6 +162,9 @@ private final class ColumnView: NSView {
         title.font = .preferredFont(forTextStyle: .headline)
         title.translatesAutoresizingMaskIntoConstraints = false
         addSubview(title)
+        count.font = .monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .headline).pointSize, weight: .regular)
+        count.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(count)
 
         cards.orientation = .vertical
         cards.alignment = .leading
@@ -180,7 +186,9 @@ private final class ColumnView: NSView {
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            title.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
+            title.trailingAnchor.constraint(lessThanOrEqualTo: count.leadingAnchor, constant: -8),
+            count.firstBaselineAnchor.constraint(equalTo: title.firstBaselineAnchor),
+            count.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
             scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -206,6 +214,13 @@ private final class ColumnView: NSView {
             self.cards.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: self.cards.widthAnchor, constant: -24).isActive = true
         }
+    }
+
+    /// Text on the right of the Column's title, e.g. Doing's "2 / 3".
+    func showCount(_ text: String, isWarning: Bool) {
+        count.stringValue = text
+        count.textColor = isWarning ? .systemRed : .secondaryLabelColor
+        count.setAccessibilityLabel(isWarning ? "\(text), over the WIP Limit" : text)
     }
 
     func contains(_ card: UUID?) -> Bool {

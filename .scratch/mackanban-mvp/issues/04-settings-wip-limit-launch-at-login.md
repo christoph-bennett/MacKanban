@@ -4,11 +4,16 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Settings opens with ⌘, and from the status item menu, and shows the WIP Limit and Launch at login
-- [ ] Moving into Doing at the WIP Limit is refused with an explanation, records no Moved event, and a Doing → Backlog move is always allowed
+- [x] Moving into Doing at the WIP Limit is refused with an explanation, records no Moved event, and a Doing → Backlog move is always allowed
 - [ ] Lowering the limit below the Doing count keeps the Cards in Doing, shows the header in red, and refuses new starts
-- [ ] Every WIP Limit change appends one WIP Limit Changed event with from and to, with no undo
+- [x] Every WIP Limit change appends one WIP Limit Changed event with from and to, with no undo
 - [ ] Launch at login takes effect without a restart
-- [ ] Board tests: WIP Limit enforcement, including after lowering it, and WIP Limit Changed events
+- [x] Board tests: WIP Limit enforcement, including after lowering it, and WIP Limit Changed events
+
+**Notes from implementing:**
+- Settings is AppKit: a WIP Limit change goes through the Board, which records the WIP Limit Changed event.
+- A stored WIP Limit outside 1–5 falls back to 3 (Board test).
+- Not yet checked by hand: ⌘, and Settings… in the status item menu, changing the WIP Limit (the Doing header follows, red when lowered below the count), the refusal sheet when starting at the limit, Launch at login on and off.

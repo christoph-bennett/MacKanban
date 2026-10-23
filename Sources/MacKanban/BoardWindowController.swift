@@ -29,6 +29,10 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    func reload() {
+        boardView.reload()
+    }
+
     @objc func newCard(_ sender: Any?) {
         boardView.newCard()
     }

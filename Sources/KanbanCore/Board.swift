@@ -8,11 +8,27 @@ public struct Card: Equatable, Identifiable, Sendable {
     public let notes: String
 }
 
+/// How full Doing is: shown as "count / limit" in its header.
+public struct WIPStatus: Equatable, Sendable {
+    public let count: Int
+    public let limit: Int
+
+    public init(count: Int, limit: Int) {
+        self.count = count
+        self.limit = limit
+    }
+
+    /// Only after the limit was lowered below the Cards already in Doing.
+    public var isOverLimit: Bool { count > limit }
+}
+
 /// Why the Board refused an operation.
 public enum BoardError: LocalizedError, Equatable {
     case emptyTitle
     case cardNotFound
     case moveNotAllowed(from: Column, to: Column)
+    case wipLimitReached(limit: Int)
+    case wipLimitOutOfRange
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +38,8 @@ public enum BoardError: LocalizedError, Equatable {
         case .moveNotAllowed(from: .done, to: _): "Done Cards stay in Done."
         case .moveNotAllowed(from: _, to: .done): "Start a Card before finishing it: move it to Doing first."
         case let .moveNotAllowed(from, to): "Cards can't move from \(from.title) to \(to.title)."
+        case let .wipLimitReached(limit): "Doing is at its WIP Limit of \(limit). Finish a Card before starting another."
+        case .wipLimitOutOfRange: "The WIP Limit is between \(Board.wipLimits.lowerBound) and \(Board.wipLimits.upperBound)."
         }
     }
 }
@@ -33,9 +51,14 @@ public final class Board {
     private let container: NSPersistentContainer
     private var context: NSManagedObjectContext { container.viewContext }
     private let now: () -> Date
+    /// The most Cards Doing may hold. Kept by the app, which passes it in (spec 0001).
+    public private(set) var wipLimit: Int
 
-    /// - Parameter storeURL: the SQLite file, or `nil` for a store that lives only in memory.
-    public init(storeURL: URL?, now: @escaping () -> Date = Date.init) throws {
+    /// - Parameters:
+    ///   - storeURL: the SQLite file, or `nil` for a store that lives only in memory.
+    ///   - wipLimit: the stored WIP Limit; one outside `wipLimits` becomes the default.
+    public init(storeURL: URL?, now: @escaping () -> Date = Date.init, wipLimit: Int = Board.defaultWIPLimit) throws {
+        self.wipLimit = Self.wipLimits.contains(wipLimit) ? wipLimit : Self.defaultWIPLimit
         if let storeURL {
             try FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         }
@@ -67,11 +90,38 @@ public final class Board {
         guard Self.allowedMoves.contains([from, column]) else {
             throw BoardError.moveNotAllowed(from: from, to: column)
         }
+        if column == .doing, try wipStatus().count >= wipLimit {
+            throw BoardError.wipLimitReached(limit: wipLimit)
+        }
         try change {
             let event = try record(.moved, for: card)
             event.setValue(from.rawValue, forKey: "fromColumn")
             event.setValue(column.rawValue, forKey: "toColumn")
         }
+    }
+
+    public func wipStatus() throws -> WIPStatus {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
+        request.relationshipKeyPathsForPrefetching = ["events"]
+        let doing = try context.fetch(request).count { Self.column(of: $0) == .doing }
+        return WIPStatus(count: doing, limit: wipLimit)
+    }
+
+    /// The WIP Limits the user can choose (ADR 0001: the only setting).
+    public nonisolated static let wipLimits = 1...5
+    public nonisolated static let defaultWIPLimit = 3
+
+    /// Sets the WIP Limit and records a WIP Limit Changed Board Event. Cards
+    /// already in Doing stay there, even above a lowered limit.
+    public func changeWIPLimit(to limit: Int) throws {
+        guard Self.wipLimits.contains(limit) else { throw BoardError.wipLimitOutOfRange }
+        guard limit != wipLimit else { return }
+        try change {
+            let event = try record(.wipLimitChanged, for: nil)
+            event.setValue(wipLimit, forKey: "fromNumber")
+            event.setValue(limit, forKey: "toNumber")
+        }
+        wipLimit = limit
     }
 
     /// Forward through Doing, or from Doing back to Backlog. Nothing leaves Done.
@@ -156,7 +206,9 @@ public final class Board {
             let card = object.value(forKey: "card") as? NSManagedObject
             return Event(kind: kind, timestamp: timestamp, cardID: card?.value(forKey: "id") as? UUID,
                          from: (object.value(forKey: "fromColumn") as? String).flatMap(Column.init),
-                         to: (object.value(forKey: "toColumn") as? String).flatMap(Column.init))
+                         to: (object.value(forKey: "toColumn") as? String).flatMap(Column.init),
+                         fromNumber: (object.value(forKey: "fromNumber") as? NSNumber)?.intValue,
+                         toNumber: (object.value(forKey: "toNumber") as? NSNumber)?.intValue)
         }
     }
 
@@ -185,7 +237,7 @@ public final class Board {
                 guard let to = (event.value(forKey: "toColumn") as? String).flatMap(Column.init) else { continue }
                 if !visits.isEmpty { visits[visits.count - 1].left = time }
                 visits.append(ColumnVisit(column: to, entered: time))
-            case nil:
+            case .wipLimitChanged, nil:
                 continue
             }
         }

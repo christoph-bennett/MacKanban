@@ -5,11 +5,19 @@ import KanbanCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var board: BoardWindowController?
+    private var settings: SettingsWindowController?
     private var terminationSignal: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let defaults = UserDefaults.standard
+        defaults.register(defaults: [SettingsWindowController.wipLimitKey: Board.defaultWIPLimit])
         do {
-            board = BoardWindowController(board: try Board(storeURL: Self.storeURL))
+            let model = try Board(storeURL: Self.storeURL, wipLimit: defaults.integer(forKey: SettingsWindowController.wipLimitKey))
+            let board = BoardWindowController(board: model)
+            let settings = SettingsWindowController(board: model)
+            settings.onWIPLimitChange = { [weak board] in board?.reload() }
+            self.board = board
+            self.settings = settings
         } catch {
             NSApp.activate()
             let alert = NSAlert(error: error)
@@ -47,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         board?.newCard(nil)
     }
 
+    @objc func showSettings() {
+        settings?.showWindow(nil)
+    }
+
     @objc func showBoard() {
         guard let board else { return }  // the store didn't open and MacKanban is quitting
         board.showWindow(nil)
@@ -62,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.addItem(withTitle: "Open Board", action: #selector(showBoard), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit MacKanban", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
         item.menu = menu
