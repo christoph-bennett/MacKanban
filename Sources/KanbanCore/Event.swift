@@ -6,6 +6,8 @@ public struct Event: Equatable, Sendable {
     public enum Kind: String, Sendable {
         case created
         case moved
+        case edited
+        case discarded
         case wipLimitChanged
     }
 

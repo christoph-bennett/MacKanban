@@ -3,6 +3,7 @@ import KanbanCore
 
 /// The three Columns side by side, each listing its Cards. A clicked Card is
 /// selected; ⌘→ and ⌘← (the Card menu) or dragging move it between Columns.
+/// Its pencil, a double-click or Return opens it; ⌘⌫ or its context menu Discards it.
 @MainActor
 final class BoardViewController: NSViewController, NSMenuItemValidation {
     private let board: Board
@@ -29,6 +30,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             view.heightAnchor.constraint(equalTo: columns.heightAnchor, constant: -32).isActive = true
             view.onSelect = { [weak self] card in self?.select(card) }
             view.onDrop = { [weak self] card, column in self?.move(card, to: column) }
+            view.onOpen = { [weak self] card in self?.open(card) }
+            view.onDiscard = { [weak self] card in self?.discard(card) }
         }
         view = columns
         reload()
@@ -68,12 +71,29 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     }
 
     func newCard() {
-        guard presentedViewControllers?.isEmpty ?? true else { return }  // the sheet is already open
-        let sheet = NewCardViewController()
-        sheet.onCreate = { [weak self, weak sheet] title, notes in
+        presentCardSheet(.new) { [board] title, notes in try board.createCard(title: title, notes: notes) }
+    }
+
+    /// Opens the Card's sheet: editable in Backlog and Doing, read-only in Done.
+    private func open(_ id: UUID) {
+        guard let (card, column) = cardOnScreen(id) else { return }
+        select(id)
+        if column == .done {
+            presentCardSheet(.readOnly(card))
+        } else {
+            presentCardSheet(.edit(card)) { [board] title, notes in try board.edit(id, title: title, notes: notes) }
+        }
+    }
+
+    /// - Parameter save: what Save does; `nil` for the read-only sheet, which has none.
+    private func presentCardSheet(_ mode: CardSheetViewController.Mode, save: ((String, String) throws -> Void)? = nil) {
+        guard !isShowingSheet else { return }
+        let sheet = CardSheetViewController(mode: mode)
+        guard let save else { return presentAsSheet(sheet) }
+        sheet.onSave = { [weak self, weak sheet] title, notes in
             guard let self, let sheet else { return }
             do {
-                try board.createCard(title: title, notes: notes)
+                try save(title, notes)
                 reload()
                 dismiss(sheet)
             } catch {
@@ -81,6 +101,40 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             }
         }
         presentAsSheet(sheet)
+    }
+
+    private func discard(_ id: UUID) {
+        do {
+            try board.discard(id)
+            if selectedCard == id { selectedCard = nil }
+            reload()
+        } catch {
+            show(error)
+        }
+    }
+
+    private func cardOnScreen(_ id: UUID) -> (Card, Column)? {
+        for view in columnViews {
+            if let card = view.card(id) { return (card, view.column) }
+        }
+        return nil
+    }
+
+    /// Return opens the selected Card.
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 36 || event.keyCode == 76, let selectedCard {  // Return, Enter
+            open(selectedCard)
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
+    @objc func editCard(_ sender: Any?) {
+        selectedCard.map(open)
+    }
+
+    @objc func discardCard(_ sender: Any?) {
+        selectedCard.map(discard)
     }
 
     /// Only redraws the selection: rebuilding the Card views would replace the
@@ -129,10 +183,26 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         return Column.allCases[index + offset]
     }
 
+    private var isShowingSheet: Bool {
+        !(presentedViewControllers?.isEmpty ?? true)
+    }
+
+    /// The Card menu acts on the selected Card, so it's off while a sheet is up:
+    /// ⌘⌫ or ⌘→ typed in the edit sheet must not Discard or move the Card being edited.
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        switch menuItem.action {
+        if menuItem.action == #selector(editCard(_:)) {
+            menuItem.title = selectedColumn == .done ? "Open Card…" : "Edit Card…"
+        }
+        if isShowingSheet,
+           [#selector(moveToNextColumn(_:)), #selector(moveToPreviousColumn(_:)), #selector(editCard(_:)),
+            #selector(discardCard(_:))].contains(menuItem.action) {
+            return false
+        }
+        return switch menuItem.action {
         case #selector(moveToNextColumn(_:)): column(by: 1) != nil
         case #selector(moveToPreviousColumn(_:)): column(by: -1) != nil
+        case #selector(editCard(_:)): selectedColumn != nil
+        case #selector(discardCard(_:)): selectedColumn == .backlog || selectedColumn == .doing
         default: true
         }
     }
@@ -164,6 +234,8 @@ private final class ColumnView: NSView {
     let column: Column
     var onSelect: ((UUID) -> Void)?
     var onDrop: ((_ card: UUID, _ column: Column) -> Void)?
+    var onOpen: ((UUID) -> Void)?
+    var onDiscard: ((UUID) -> Void)?
     private let cards = NSStackView()
     private let count = NSTextField(labelWithString: "")
     private var cardIDs: [UUID] { cards.arrangedSubviews.compactMap { ($0 as? CardView)?.card.id } }
@@ -232,6 +304,8 @@ private final class ColumnView: NSView {
         for card in cards {
             let view = CardView(card: card, in: column, isSelected: card.id == selected)
             view.onSelect = { [weak self] in self?.onSelect?(card.id) }
+            view.onOpen = { [weak self] in self?.onOpen?(card.id) }
+            view.onDiscard = { [weak self] in self?.onDiscard?(card.id) }
             self.cards.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: self.cards.widthAnchor, constant: -24).isActive = true
         }
@@ -246,6 +320,10 @@ private final class ColumnView: NSView {
 
     func contains(_ card: UUID?) -> Bool {
         card.map(cardIDs.contains) ?? false
+    }
+
+    func card(_ id: UUID) -> Card? {
+        cards.arrangedSubviews.lazy.compactMap { ($0 as? CardView)?.card }.first { $0.id == id }
     }
 
     func select(_ card: UUID) {
@@ -296,17 +374,28 @@ private final class ColumnView: NSView {
 @MainActor
 private final class CardView: NSView, NSDraggingSource {
     var onSelect: (() -> Void)?
+    var onOpen: (() -> Void)?
+    /// Offered only while the Card is editable: Done Cards can't be Discarded.
+    var onDiscard: (() -> Void)?
     let card: Card
     var isSelected: Bool {
         didSet {
             needsDisplay = true
             setAccessibilitySelected(isSelected)
+            updatePencil()
         }
+    }
+    private let isEditable: Bool
+    /// Opens the edit sheet. Shown while the pointer is over the Card or it's selected.
+    private let pencil = NSButton()
+    private var isHovered = false {
+        didSet { updatePencil() }
     }
 
     init(card: Card, in column: Column, isSelected: Bool) {
         self.card = card
         self.isSelected = isSelected
+        isEditable = column != .done
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 8
@@ -340,7 +429,9 @@ private final class CardView: NSView, NSDraggingSource {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 4
-        stack.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        // Editable Cards keep room on the right so the pencil never covers text.
+        let trailing: CGFloat = isEditable ? 30 : 10
+        stack.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: trailing)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
@@ -350,21 +441,75 @@ private final class CardView: NSView, NSDraggingSource {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         for label in stack.arrangedSubviews {
-            label.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20).isActive = true
+            label.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -10 - trailing).isActive = true
         }
+
+        if isEditable {
+            pencil.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit")
+            pencil.isBordered = false
+            pencil.bezelStyle = .accessoryBarAction
+            pencil.contentTintColor = .secondaryLabelColor
+            pencil.toolTip = "Edit (Return)"
+            pencil.target = self
+            pencil.action = #selector(openFromPencil(_:))
+            pencil.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(pencil)
+            NSLayoutConstraint.activate([
+                pencil.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+                pencil.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            ])
+            updatePencil()
+        }
+    }
+
+    private func updatePencil() {
+        pencil.isHidden = !(isHovered || isSelected)
+    }
+
+    @objc private func openFromPencil(_ sender: Any?) {
+        onOpen?()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        guard isEditable else { return }
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent) { isHovered = false }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        onSelect?()
+        let menu = NSMenu()
+        menu.addItem(withTitle: isEditable ? "Edit…" : "Open…", action: #selector(openFromPencil(_:)), keyEquivalent: "").target = self
+        if isEditable {
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Discard", action: #selector(discardFromMenu(_:)), keyEquivalent: "").target = self
+        }
+        return menu
+    }
+
+    @objc private func discardFromMenu(_ sender: Any?) {
+        onDiscard?()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    /// The whole Card is one target: clicks and drags on its labels select or
-    /// drag the Card, and the labels show no text cursor.
+    /// The whole Card is one target, apart from its pencil: clicks and drags on
+    /// its labels select or drag the Card, and the labels show no text cursor.
     override func hitTest(_ point: NSPoint) -> NSView? {
-        frame.contains(point) ? self : nil
+        guard frame.contains(point) else { return nil }
+        if !pencil.isHidden, pencil.frame.contains(convert(point, from: superview)) { return pencil }
+        return self
     }
 
     override func mouseDown(with event: NSEvent) {
         onSelect?()
+        if event.clickCount == 2 { onOpen?() }
     }
 
     override func mouseDragged(with event: NSEvent) {

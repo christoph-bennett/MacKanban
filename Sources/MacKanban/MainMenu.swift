@@ -39,6 +39,11 @@ enum MainMenu {
                      keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
         card.addItem(withTitle: "Move to Previous Column", action: #selector(BoardViewController.moveToPreviousColumn(_:)),
                      keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        card.addItem(.separator())
+        card.addItem(withTitle: "Edit Card…", action: #selector(BoardViewController.editCard(_:)), keyEquivalent: "")
+        // ⌘⌫ as in Finder's Move to Trash.
+        card.addItem(withTitle: "Discard Card", action: #selector(BoardViewController.discardCard(_:)),
+                     keyEquivalent: String(UnicodeScalar(NSBackspaceCharacter)!))
         main.addItem(submenu: card, title: "Card")
 
         let window = NSMenu(title: "Window")

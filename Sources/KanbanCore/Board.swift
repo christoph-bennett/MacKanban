@@ -34,6 +34,7 @@ public enum BoardError: LocalizedError, Equatable {
     case moveNotAllowed(from: Column, to: Column)
     case wipLimitReached(limit: Int)
     case wipLimitOutOfRange
+    case cardIsDone
 
     public var errorDescription: String? {
         switch self {
@@ -44,6 +45,7 @@ public enum BoardError: LocalizedError, Equatable {
         case .moveNotAllowed(from: _, to: .done): "Start a Card before finishing it: move it to Doing first."
         case let .moveNotAllowed(from, to): "Cards can't move from \(from.title) to \(to.title)."
         case let .wipLimitReached(limit): "Doing is at its WIP Limit of \(limit). Finish a Card before starting another."
+        case .cardIsDone: "Done Cards stay as they were finished."
         case .wipLimitOutOfRange: "The WIP Limit is between \(Board.wipLimits.lowerBound) and \(Board.wipLimits.upperBound)."
         }
     }
@@ -90,8 +92,7 @@ public final class Board {
     }
 
     public func move(_ id: UUID, to column: Column) throws {
-        let card = try cardObject(id)
-        let from = Self.column(of: card)
+        let (card, from) = try cardOnBoard(id)
         guard Self.allowedMoves.contains([from, column]) else {
             throw BoardError.moveNotAllowed(from: from, to: column)
         }
@@ -129,6 +130,32 @@ public final class Board {
         wipLimit = limit
     }
 
+    /// Changes the Card's title and notes. The Edited event records only that it
+    /// happened, never the text.
+    public func edit(_ id: UUID, title: String, notes: String) throws {
+        let (card, column) = try cardOnBoard(id)
+        guard column != .done else { throw BoardError.cardIsDone }
+        let (title, notes) = (title.trimmingCharacters(in: .whitespacesAndNewlines),
+                              notes.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard !title.isEmpty else { throw BoardError.emptyTitle }
+        guard title != card.value(forKey: "title") as? String ?? "" || notes != card.value(forKey: "notes") as? String ?? "" else { return }
+        try change {
+            card.setValue(title, forKey: "title")
+            card.setValue(notes, forKey: "notes")
+            try record(.edited, for: card)
+        }
+    }
+
+    /// Takes an Open Card off the Board for good. It stays in the event log, but
+    /// it isn't a completion: it never counts as Throughput (ADR 0001).
+    public func discard(_ id: UUID) throws {
+        let (card, column) = try cardOnBoard(id)
+        guard column != .done else { throw BoardError.cardIsDone }
+        try change {
+            try record(.discarded, for: card)
+        }
+    }
+
     /// Forward through Doing, or from Doing back to Backlog. Nothing leaves Done.
     private static let allowedMoves: Set<[Column]> = [[.backlog, .doing], [.doing, .done], [.doing, .backlog]]
 
@@ -153,12 +180,15 @@ public final class Board {
         return max(now(), latest.addingTimeInterval(0.001))
     }
 
-    private func cardObject(_ id: UUID) throws -> NSManagedObject {
+    /// The Card and its Column, if it's on the Board: Discarded Cards aren't.
+    private func cardOnBoard(_ id: UUID) throws -> (card: NSManagedObject, column: Column) {
         let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         request.fetchLimit = 1
-        guard let card = try context.fetch(request).first else { throw BoardError.cardNotFound }
-        return card
+        guard let card = try context.fetch(request).first, let column = Self.column(of: card) else {
+            throw BoardError.cardNotFound
+        }
+        return (card, column)
     }
 
     /// Makes `changes` and saves them, or drops all of them if any step fails,
@@ -184,9 +214,9 @@ public final class Board {
         let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
         request.relationshipKeyPathsForPrefetching = ["events"]
         let now = now()
-        let placed = try context.fetch(request).map { object in
+        let placed = try context.fetch(request).compactMap { object -> (object: NSManagedObject, column: Column, key: TimeInterval, age: TimeInterval?)? in
             let visits = Self.visits(of: object)
-            let column = visits.last?.column ?? .backlog
+            guard let column = Self.column(after: visits) else { return nil }  // Discarded
             let created = visits.first?.entered ?? now
             let timeInDoing = visits.timeSpent(in: .doing, until: now)
             // The age the Card's label shows, and the ascending sort key for its Column.
@@ -227,12 +257,20 @@ public final class Board {
         }
     }
 
-    /// Where the Card is now: the Column its latest move went to, else Backlog.
-    private static func column(of card: NSManagedObject) -> Column {
-        visits(of: card).last?.column ?? .backlog
+    /// Where the Card is now, or `nil` once it's Discarded.
+    private static func column(of card: NSManagedObject) -> Column? {
+        column(after: visits(of: card))
     }
 
-    /// The Card's Column Visits, replayed from its Created and Moved events.
+    /// The Column of the visit still going on. A Card without any events counts
+    /// as in Backlog, which only a damaged or half-synced store has.
+    private static func column(after visits: [ColumnVisit]) -> Column? {
+        guard let last = visits.last else { return .backlog }
+        return last.left == nil ? last.column : nil
+    }
+
+    /// The Card's Column Visits, replayed from its Created, Moved and Discarded
+    /// events. Discarding ends the last visit without starting another.
     private static func visits(of card: NSManagedObject) -> [ColumnVisit] {
         var visits: [ColumnVisit] = []
         for event in history(of: card) {
@@ -244,7 +282,9 @@ public final class Board {
                 guard let to = (event.value(forKey: "toColumn") as? String).flatMap(Column.init) else { continue }
                 if !visits.isEmpty { visits[visits.count - 1].left = time }
                 visits.append(ColumnVisit(column: to, entered: time))
-            case .wipLimitChanged, nil:
+            case .discarded:
+                if !visits.isEmpty { visits[visits.count - 1].left = time }
+            case .edited, .wipLimitChanged, nil:
                 continue
             }
         }
