@@ -206,7 +206,7 @@ private final class TriagedCardView: NSView {
             views.append(notes)
         }
         if let age = card.ageLabel(in: column) {
-            let label = NSTextField(labelWithString: column == .doing ? age : "\(age) in Backlog")
+            let label = NSTextField(labelWithString: column == .doing ? age : "\(age), in Backlog")
             label.font = .monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .medium)
             label.textColor = .secondaryLabelColor
             views.append(label)

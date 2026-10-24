@@ -731,7 +731,9 @@ enum UrgencyTint {
 }
 
 extension Card {
-    /// "12d" in Backlog, "4d in Doing" in Doing, hours under a day; none in Done.
+    /// "12d old" in Backlog (Card Age), "4d in Doing" in Doing (Column Age), hours
+    /// under a day; none in Done. Each names what it measures: a Card that spent
+    /// most of its life in Doing shows nearly the same number in both.
     func ageLabel(in column: Column) -> String? {
         guard let age else { return nil }
         let text = switch age {
@@ -739,6 +741,6 @@ extension Card {
         case ..<86_400: "\(Int(age / 3_600))h"
         default: "\(Int(age / 86_400))d"
         }
-        return column == .doing ? "\(text) in Doing" : text
+        return column == .doing ? "\(text) in Doing" : "\(text) old"
     }
 }
