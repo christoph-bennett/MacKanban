@@ -2,17 +2,12 @@ import AppKit
 import KanbanCore
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController?
     private var board: BoardWindowController?
     private var settings: SettingsWindowController?
     private var archive: ArchiveWindowController?
     private var terminationSignal: DispatchSourceSignal?
-    /// The store's settings: the real ones, or a sample store's own.
-    private var defaults = UserDefaults.standard
-    /// View > Show Card Ages: a view option, so in the View menu rather than
-    /// Settings (HIG audit, finding 5). Remembered per store, like the WIP Limit.
-    static let showsAgesKey = "showsAges"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // A store other than the real one gets its own settings, so trying things
@@ -20,14 +15,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let isRealStore = Self.storeOverride == nil
         let defaults = isRealStore ? UserDefaults.standard : UserDefaults(suiteName: "com.onethingwell.mackanban.sample")!
         defaults.register(defaults: [SettingsWindowController.wipLimitKey: Board.defaultWIPLimit,
-                                     Self.showsAgesKey: true])
-        self.defaults = defaults
+                                     SettingsWindowController.showsAgesKey: true])
         do {
             let model = try Board(storeURL: Self.storeURL, wipLimit: defaults.integer(forKey: SettingsWindowController.wipLimitKey))
             let board = BoardWindowController(board: model)
             let settings = SettingsWindowController(board: model, defaults: defaults, offersLaunchAtLogin: isRealStore)
             settings.onWIPLimitChange = { [weak board] in board?.reload() }
-            board.showsAges = defaults.bool(forKey: Self.showsAgesKey)
+            board.showsAges = defaults.bool(forKey: SettingsWindowController.showsAgesKey)
+            settings.onShowsAgesChange = { [weak board] in board?.showsAges = $0 }
             let statusItem = StatusItemController(board: model)
             statusItem.onNewCard = { [weak self] in self?.newCard() }
             statusItem.onOpenBoard = { [weak self] in self?.showBoard() }
@@ -93,21 +88,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func showArchive() {
         archive?.showWindow(nil)
-    }
-
-    @objc func toggleCardAges(_ sender: Any?) {
-        let shows = !defaults.bool(forKey: Self.showsAgesKey)
-        defaults.set(shows, forKey: Self.showsAgesKey)
-        board?.showsAges = shows
-    }
-
-    /// Show Card Ages / Hide Card Ages, named for what it will do, like Finder's
-    /// View > Show Path Bar / Hide Path Bar.
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(toggleCardAges(_:)) {
-            menuItem.title = defaults.bool(forKey: Self.showsAgesKey) ? "Hide Card Ages" : "Show Card Ages"
-        }
-        return true
     }
 
     @objc func showSettings() {

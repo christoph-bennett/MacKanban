@@ -1,24 +1,30 @@
 import AppKit
 import KanbanCore
 
-/// Settings: the WIP Limit, the only rule the user can change (ADR 0001), and
-/// Launch at login. AppKit rather than SwiftUI: a WIP Limit change has to go
+/// Settings: the WIP Limit, the only rule the user can change (ADR 0001), the
+/// age labels on Cards, and Launch at login. AppKit rather than SwiftUI: a WIP Limit change has to go
 /// through the Board, which records it as a Board Event.
 @MainActor
 final class SettingsWindowController: NSWindowController {
     static let wipLimitKey = "wipLimit"
+    /// Here rather than in a View menu, where people would look for it (decided
+    /// 2026-10-24, overriding HIG audit finding 5).
+    static let showsAgesKey = "showsAges"
 
     /// After the WIP Limit changed, so the Board window can update Doing's header.
     var onWIPLimitChange: (() -> Void)?
+    /// After the age labels were switched on or off.
+    var onShowsAgesChange: ((Bool) -> Void)?
 
     private let board: Board
     private let defaults: UserDefaults
     private let offersLaunchAtLogin: Bool
     private let wipLimit = NSPopUpButton()
+    private let showsAges = NSButton(checkboxWithTitle: "Show ages on Cards", target: nil, action: nil)
     private let launchAtLogin = NSButton(checkboxWithTitle: "Open MacKanban at login", target: nil, action: nil)
     private let approvalNote = NSTextField(wrappingLabelWithString: "")
     private var grid: NSGridView!
-    private static let approvalRow = 3
+    private static let approvalRow = 5
 
     /// - Parameter offersLaunchAtLogin: false for a sample store, where opening at
     ///   login would still register the real app.
@@ -38,6 +44,12 @@ final class SettingsWindowController: NSWindowController {
         wipNote.font = .preferredFont(forTextStyle: .callout)
         wipNote.textColor = .secondaryLabelColor
 
+        showsAges.target = self
+        showsAges.action = #selector(showsAgesChanged(_:))
+        let agesNote = NSTextField(wrappingLabelWithString: "How long each Card has been on the Board, or in Doing. The tints show Urgency either way.")
+        agesNote.font = .preferredFont(forTextStyle: .callout)
+        agesNote.textColor = .secondaryLabelColor
+
         launchAtLogin.target = self
         launchAtLogin.action = #selector(launchAtLoginChanged(_:))
         approvalNote.font = .preferredFont(forTextStyle: .callout)
@@ -51,6 +63,8 @@ final class SettingsWindowController: NSWindowController {
         grid = NSGridView(views: [
             [NSTextField(labelWithString: "WIP Limit:"), wipLimit],
             [NSGridCell.emptyContentView, wipNote],
+            [NSTextField(labelWithString: "Cards:"), showsAges],
+            [NSGridCell.emptyContentView, agesNote],
             [NSTextField(labelWithString: "Startup:"), launchAtLogin],
             [NSGridCell.emptyContentView, approval],
         ])
@@ -61,10 +75,11 @@ final class SettingsWindowController: NSWindowController {
         grid.rowSpacing = 4
         grid.columnSpacing = 8
         grid.row(at: 1).bottomPadding = 12
+        grid.row(at: 3).bottomPadding = 12
         grid.translatesAutoresizingMaskIntoConstraints = false
         // A fixed width: with only a preferred one, the grid squeezed the notes
         // narrower than they were measured for and cut them off.
-        for note in [wipNote, approvalNote] {
+        for note in [wipNote, agesNote, approvalNote] {
             note.preferredMaxLayoutWidth = 300
             note.widthAnchor.constraint(equalToConstant: 300).isActive = true
         }
@@ -90,9 +105,10 @@ final class SettingsWindowController: NSWindowController {
         NSApp.activate()
     }
 
-    /// Reads both settings again: Launch at login can change in System Settings.
+    /// Reads the settings again: Launch at login can change in System Settings.
     private func refresh() {
         wipLimit.selectItem(withTitle: String(board.wipLimit))
+        showsAges.state = defaults.bool(forKey: Self.showsAgesKey) ? .on : .off
         let state = LaunchAtLogin.state
         // Shown as on while it needs approval: it's still registered, and
         // switching it off here unregisters it.
@@ -111,6 +127,11 @@ final class SettingsWindowController: NSWindowController {
             refresh()
             NSAlert(error: error).beginSheetModal(for: window!)
         }
+    }
+
+    @objc private func showsAgesChanged(_ sender: NSButton) {
+        defaults.set(sender.state == .on, forKey: Self.showsAgesKey)
+        onShowsAgesChange?(sender.state == .on)
     }
 
     @objc private func launchAtLoginChanged(_ sender: NSButton) {

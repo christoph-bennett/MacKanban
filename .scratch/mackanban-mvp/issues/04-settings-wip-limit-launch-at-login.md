@@ -22,3 +22,4 @@
 - The red refused drop over a full Doing checked by hand by Christoph on 2026-10-23.
 - Amended on 2026-10-24: Settings gained "Show ages on Cards" (see ticket 05). Fixed on the way: the notes under each setting were cut off after two lines (measured for 300 pt, squeezed narrower by the grid); they now have a fixed width. Checked by screenshot.
 - HIG audit (2026-10-24, `.scratch/hig-audit/`): the window is titled "MacKanban Settings" and uses MacJot's spacing (explanation 4 pt below its control, 16 pt between settings, 30/20 pt margins); the age checkbox moved to the View menu.
+- Reverted on 2026-10-24: "Show ages on Cards" is back in Settings (Cards row, between WIP Limit and Startup), with the new spacing.

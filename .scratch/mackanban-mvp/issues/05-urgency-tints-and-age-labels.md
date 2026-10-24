@@ -21,3 +21,4 @@
 - Amended on 2026-10-24 at Christoph's request: a hidden age keeps its line (the label is transparent instead of removed), so switching ages off doesn't make Cards smaller. Checked by screenshot.
 - Amended on 2026-10-24 at Christoph's request: the Backlog label reads "12d old" instead of "12d". A Card moved back from Doing showed nearly the same number as its time in Doing (it had spent most of its life there), which read as if the Doing time carried over. The rule is unchanged: Backlog shows Card Age (ADR 0001).
 - HIG audit (2026-10-24, `.scratch/hig-audit/`): the age setting moved from Settings to View > Show/Hide Card Ages (finding 5); Cards have 10 pt padding on all sides (finding 2).
+- Reverted on 2026-10-24 at Christoph's request: "Show ages on Cards" is back in Settings, where people would look for it; the View menu is gone.

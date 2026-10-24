@@ -33,11 +33,6 @@ enum MainMenu {
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         main.addItem(submenu: edit, title: "Edit")
 
-        let view = NSMenu(title: "View")
-        view.addItem(withTitle: "Show Card Ages", action: #selector(AppDelegate.toggleCardAges(_:)), keyEquivalent: "")
-            .target = appDelegate
-        main.addItem(submenu: view, title: "View")
-
         let card = NSMenu(title: "Card")
         // ⌘→ and ⌘←: the selected Card moves the way the Columns read.
         card.addItem(withTitle: "Move to Next Column", action: #selector(BoardViewController.moveToNextColumn(_:)),

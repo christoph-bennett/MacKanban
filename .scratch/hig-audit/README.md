@@ -156,3 +156,5 @@ All eleven fixes are in; screenshots of the result are in `after/`:
 Not checkable by screenshot: the pencil's and the gauge's highlight under the pointer and their press states, the View menu's Show/Hide title.
 
 Code review (medium) of the fixes: added VoiceOver names for the Title and Notes fields (the placeholder had been the title field's only name); the gauge got back the toolbar highlight and press state; the status menu reads the Board once per opening instead of three times; Show/Hide Card Ages instead of a checkmark; the tooltip's ellipsis removed. Skipped: the pencil's highlight is missing when a Card is rebuilt under a still pointer (it appears as soon as the pointer moves); menu items stay enabled after a failed launch (MacKanban quits right after its alert).
+
+**Changed 2026-10-24, finding 5 reverted at Christoph's request:** "Show ages on Cards" is back in Settings (with finding 7's spacing) and the View menu is gone. The HIG would put it in the View menu, but people would look for it in Settings.
