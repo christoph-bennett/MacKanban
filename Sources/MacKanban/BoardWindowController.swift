@@ -6,11 +6,11 @@ import KanbanCore
 final class BoardWindowController: NSWindowController, NSToolbarDelegate {
     private let boardView: BoardViewController
     private let gauge = CapacityGauge()
+    /// After every change shown in the window, for the menu bar extra.
+    var onStateChange: ((BoardState) -> Void)?
 
     init(board: Board) {
         boardView = BoardViewController(board: board)
-        let gauge = gauge
-        boardView.onCapacityChange = { gauge.show($0) }
         let window = NSWindow(contentViewController: boardView)
         window.title = "MacKanban"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -27,6 +27,11 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
         // After the toolbar: adding it later would grow the restored frame on every launch.
         window.setFrameAutosaveName("Board")
         if !window.setFrameUsingName("Board") { window.center() }
+        boardView.onStateChange = { [weak self] state in
+            self?.gauge.show(state.capacity)
+            self?.onStateChange?(state)
+        }
+        boardView.reload()  // the first load came before this callback was set
     }
 
     @available(*, unavailable)
@@ -38,6 +43,10 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
 
     @objc func newCard(_ sender: Any?) {
         boardView.newCard()
+    }
+
+    func finish(_ id: UUID) {
+        boardView.finish(id)
     }
 
     // MARK: NSToolbarDelegate

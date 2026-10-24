@@ -3,7 +3,7 @@ import KanbanCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var statusItem: NSStatusItem?
+    private var statusItem: StatusItemController?
     private var board: BoardWindowController?
     private var settings: SettingsWindowController?
     private var terminationSignal: DispatchSourceSignal?
@@ -19,8 +19,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let board = BoardWindowController(board: model)
             let settings = SettingsWindowController(board: model, defaults: defaults, offersLaunchAtLogin: isRealStore)
             settings.onWIPLimitChange = { [weak board] in board?.reload() }
+            let statusItem = StatusItemController(board: model)
+            statusItem.onNewCard = { [weak self] in self?.newCard() }
+            statusItem.onOpenBoard = { [weak self] in self?.showBoard() }
+            statusItem.onSettings = { [weak self] in self?.showSettings() }
+            statusItem.onFinish = { [weak board] in board?.finish($0) }
+            board.onStateChange = { [weak statusItem] in statusItem?.show($0) }
             self.board = board
             self.settings = settings
+            self.statusItem = statusItem
         } catch {
             NSApp.activate()
             let alert = NSAlert(error: error)
@@ -31,7 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSApp.mainMenu = MainMenu.make(appDelegate: self)
-        statusItem = makeStatusItem()
         quitNormallyOnTerminationSignal()
         showBoard()
         NSApp.activate()
@@ -80,21 +86,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         board.showWindow(nil)
         board.window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
-    }
-
-    private func makeStatusItem() -> NSStatusItem {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let image = NSImage(systemSymbolName: "rectangle.split.3x1", accessibilityDescription: "MacKanban")
-        image?.isTemplate = true
-        item.button?.image = image
-
-        let menu = NSMenu()
-        menu.addItem(withTitle: "Open Board", action: #selector(showBoard), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: "").target = self
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit MacKanban", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
-        item.menu = menu
-        return item
     }
 
     /// `kill`/`pkill` (e.g. scripts/install.sh) send SIGTERM, which would end

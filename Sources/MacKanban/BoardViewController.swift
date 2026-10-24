@@ -10,8 +10,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     private let columnViews = Column.allCases.map { ColumnView(column: $0) }
     private var selectedCard: UUID?
     private var refreshTimer: Timer?
-    /// After every reload, for the toolbar's Capacity gauge.
-    var onCapacityChange: ((Capacity) -> Void)?
+    /// After every reload, for the toolbar's Capacity gauge and the menu bar extra.
+    var onStateChange: ((BoardState) -> Void)?
 
     init(board: Board) {
         self.board = board
@@ -73,7 +73,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             }
             let wip = WIPStatus(count: columns[.doing]?.count ?? 0, limit: board.wipLimit)
             columnViews.first { $0.column == .doing }?.showCount("\(wip.count) / \(wip.limit)", isWarning: wip.isOverLimit)
-            onCapacityChange?(state.capacity)
+            onStateChange?(state)
         } catch {
             show(error)
         }
@@ -106,7 +106,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
                 try undoably("New Card") { [board] in try board.createCard(title: title, notes: notes, id: id) }
             } catch let error as BoardError {
                 // Blocked while the sheet was open: an attempt like any other, so it's recorded.
-                if case .creationBlocked = error { try? board.attemptCreation() }
+                if case .creationBlocked = error { _ = try? board.attemptCreation() }
                 throw error
             }
             reload()
@@ -161,6 +161,24 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         do {
             try undoably("Discard") { [board] in try board.discard(id) }
             if selectedCard == id { selectedCard = nil }
+            reload()
+        } catch {
+            show(error)
+        }
+    }
+
+    /// Moves a Doing Card to Done from the menu bar extra, undoable in the Board window.
+    /// Leaves the selection alone: the user didn't pick the Card here. Refused
+    /// while a sheet is up, which may be about this very Card (Triage, editing):
+    /// the window comes forward to show it.
+    func finish(_ id: UUID) {
+        guard !isShowingSheet else {
+            view.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+            return NSSound.beep()
+        }
+        do {
+            try undoably("Move") { [board] in try board.move(id, to: .done) }
             reload()
         } catch {
             show(error)
@@ -293,11 +311,13 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         }
     }
 
-    /// A refused move or a store error, as a sheet on the Board window.
+    /// A refused move or a store error, as a sheet on the Board window, or as
+    /// an alert of its own while the window is hidden (from the menu bar extra).
     private func show(_ error: Error) {
-        if let window = view.window {
+        if let window = view.window, window.isVisible {
             NSAlert(error: error).beginSheetModal(for: window)
         } else {
+            NSApp.activate()  // from the menu bar extra, another app may be in front
             presentError(error)
         }
     }
