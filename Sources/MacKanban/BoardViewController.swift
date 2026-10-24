@@ -597,7 +597,7 @@ private final class CardView: NSView, NSDraggingSource {
         // On editable Cards the title and notes keep room for the pencil at the top
         // right; the age label sits below it and runs to the edge.
         for label in stack.arrangedSubviews {
-            let pencilRoom: CGFloat = isEditable && label !== ageLabel ? 28 : 0  // the chip's 22 pt + 6 pt
+            let pencilRoom: CGFloat = isEditable && label !== ageLabel ? 25 : 0  // to 6 pt left of the chip
             label.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20 - pencilRoom).isActive = true
         }
 
@@ -610,11 +610,11 @@ private final class CardView: NSView, NSDraggingSource {
             pencil.translatesAutoresizingMaskIntoConstraints = false
             addSubview(pencil)
             NSLayoutConstraint.activate([
-                // Inside the content, not in the corner (HIG Layout, alignment): its right
-                // edge on the age label's, 10 pt in, and centred on the title's first
-                // 16 pt line, (10 + 8) − 11 = 7 pt from the top.
+                // Clear of the Card's border, the same 7 pt from the top and the right
+                // (decided 2026-10-24); 7 pt centres it on the title's first 16 pt line,
+                // (10 + 8) − 11.
                 pencil.topAnchor.constraint(equalTo: topAnchor, constant: 7),
-                pencil.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+                pencil.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
                 pencil.widthAnchor.constraint(equalToConstant: 22),
                 pencil.heightAnchor.constraint(equalToConstant: 22),
             ])
