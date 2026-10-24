@@ -22,4 +22,4 @@
 - Checked by hand by Christoph on 2026-10-24: ⌘⇧A and the Window menu item, opening a Done and a Discarded Card from the Archive (double-click and Return), a Discard showing up in an open Archive window, a Done Card leaving the Board within a minute of turning 7 days old.
 - Fixed after Christoph's first look: in an empty Archive, "Nothing in the Archive yet." sat on top of the column headers (it was inside the scroll view, which ignores the centring constraints). It now sits over the scroll view in a container. Empty and full Archive checked by screenshot.
 - Changed on 2026-10-24 at Christoph's request: columns are Card, Created, Outcome (Done or Discarded, from the Card's events; was the second column, headed Outcome), Ended (when it was finished or Discarded, date and time; was headed Done or Discarded).
-- Added on 2026-10-24 at Christoph's request: Esc closes the Archive window (with a Card open, Esc closes the Card's sheet first).
+- Added on 2026-10-24 at Christoph's request: Esc closes the Archive window (with a Card open, Esc closes the Card's sheet first).  Checked by hand by Christoph on 2026-10-24.
