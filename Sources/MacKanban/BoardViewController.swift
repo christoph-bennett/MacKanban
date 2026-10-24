@@ -530,7 +530,7 @@ private final class CardView: NSView, NSDraggingSource {
     }
     private let isEditable: Bool
     /// Opens the edit sheet. Shown only while the pointer is over the Card.
-    private let pencil = NSButton()
+    private let pencil = PencilButton()
     private var isHovered = false {
         didSet {
             updatePencil()
@@ -602,15 +602,8 @@ private final class CardView: NSView, NSDraggingSource {
         }
 
         if isEditable {
-            // An accessory button (HIG audit, finding 1): a rounded highlight under the
-            // pointer and a press state, with room around the symbol to click.
             pencil.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit")?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .medium))
-            pencil.bezelStyle = .accessoryBarAction
-            pencil.isBordered = true
-            pencil.showsBorderOnlyWhileMouseInside = true
-            pencil.imagePosition = .imageOnly
-            pencil.contentTintColor = .secondaryLabelColor
             pencil.toolTip = "Edit (Return)"
             pencil.target = self
             pencil.action = #selector(openFromPencil(_:))
@@ -745,6 +738,69 @@ private final class CardView: NSView, NSDraggingSource {
     }
 
     override var wantsUpdateLayer: Bool { true }
+}
+
+/// The Card's edit button, shown while the pointer is over the Card: the pencil in
+/// the accent colour on an opaque chip of the neutral Card colour with a touch of
+/// accent, so it stands out the same on white and tinted Cards (a see-through
+/// fill turned muddy over red). The fill deepens under the pointer and while pressed (HIG: a
+/// custom button needs a press state).
+private final class PencilButton: NSButton {
+    private var isPointerInside = false {
+        didSet { updateFill() }
+    }
+    private var isPressed = false {
+        didSet { updateFill() }
+    }
+
+    init() {
+        super.init(frame: .zero)
+        isBordered = false
+        imagePosition = .imageOnly
+        contentTintColor = .controlAccentColor
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        updateFill()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { isPointerInside = true }
+    override func mouseExited(with event: NSEvent) { isPointerInside = false }
+
+    /// Called by the cell while the button is tracking a click.
+    override func highlight(_ flag: Bool) {
+        super.highlight(flag)
+        isPressed = flag
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateFill()
+    }
+
+    override var isHidden: Bool {
+        didSet { if isHidden { isPointerInside = false } }
+    }
+
+    /// Resolved for light or dark and the user's accent colour.
+    private func updateFill() {
+        let accent: CGFloat = isPressed ? 0.35 : isPointerInside ? 0.25 : 0.15
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            guard let base = NSColor.controlBackgroundColor.usingColorSpace(.sRGB),
+                  let tint = NSColor.controlAccentColor.usingColorSpace(.sRGB)
+            else { return }
+            layer?.backgroundColor = (base.blended(withFraction: accent, of: tint) ?? base).cgColor
+        }
+    }
 }
 
 /// Lays the Cards out from the top of the scroll view, not the bottom.

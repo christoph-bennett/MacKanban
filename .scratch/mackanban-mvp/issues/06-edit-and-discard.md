@@ -19,3 +19,4 @@
 - Discard has no confirmation: ⌘Z (ticket 07) makes it reversible. Until 07 lands, a Discard can't be taken back.
 - Checked by hand by Christoph on 2026-10-23.
 - HIG audit (2026-10-24, `.scratch/hig-audit/`): the hover pencil is a real accessory button (22 × 22 pt, highlight under the pointer, press state); the Card sheet labels Title like Notes, and the notes box has a rounded border.
+- Changed on 2026-10-24 at Christoph's request: while the pointer is over a Card, its pencil sits on an opaque chip (the neutral Card colour with 15% accent; 25% under the pointer, 35% pressed) with the pencil in the accent colour. A see-through accent fill was tried first and turned muddy on red Cards. Checked by screenshot in light and dark.
