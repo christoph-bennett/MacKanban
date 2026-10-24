@@ -45,6 +45,11 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
         boardView.newCard()
     }
 
+    var showsAges: Bool {
+        get { boardView.showsAges }
+        set { boardView.showsAges = newValue }
+    }
+
     func finish(_ id: UUID) {
         boardView.finish(id)
     }

@@ -17,3 +17,4 @@
 - The tint mixes the system card colour with amber, then red, resolved for the view's appearance. Background up to 45 % tint, border the full tint colour.
 - The minute refresh skips while the window is hidden, while a sheet is up, and while a mouse button is down (so a drag isn't broken).
 - `MACKANBAN_STORE` opens another store with its own settings (no Launch at login), for screenshots and trying things by hand.
+- Amended on 2026-10-24 at Christoph's request: the age label runs to 10 pt from the right edge (it kept 30 pt for the hover pencil, which sits at the top right, not next to the label; the title and notes still keep that room). A "Show ages on Cards" setting (on by default, ticket 04's Settings window) hides the labels; tints stay, and the accessibility label still includes the age. Checked by screenshot with ages on and off.

@@ -12,6 +12,10 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     private var refreshTimer: Timer?
     /// After every reload, for the toolbar's Capacity gauge and the menu bar extra.
     var onStateChange: ((BoardState) -> Void)?
+    /// The age label on every Card (a setting, on by default). Tints show either way.
+    var showsAges = true {
+        didSet { if isViewLoaded { reload() } }
+    }
 
     init(board: Board) {
         self.board = board
@@ -69,7 +73,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
                 self.selectedCard = nil
             }
             for view in columnViews {
-                view.show(columns[view.column] ?? [], selected: selectedCard)
+                view.show(columns[view.column] ?? [], selected: selectedCard, showsAges: showsAges)
             }
             let wip = WIPStatus(count: columns[.doing]?.count ?? 0, limit: board.wipLimit)
             columnViews.first { $0.column == .doing }?.showCount("\(wip.count) / \(wip.limit)", isWarning: wip.isOverLimit)
@@ -415,10 +419,10 @@ private final class ColumnView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func show(_ cards: [Card], selected: UUID?) {
+    func show(_ cards: [Card], selected: UUID?, showsAges: Bool) {
         for view in self.cards.arrangedSubviews { view.removeFromSuperview() }
         for card in cards {
-            let view = CardView(card: card, in: column, isSelected: card.id == selected)
+            let view = CardView(card: card, in: column, isSelected: card.id == selected, showsAge: showsAges)
             view.onSelect = { [weak self] in self?.onSelect?(card.id) }
             view.onOpen = { [weak self] in self?.onOpen?(card.id) }
             view.onDiscard = { [weak self] in self?.onDiscard?(card.id) }
@@ -530,7 +534,8 @@ private final class CardView: NSView, NSDraggingSource {
         didSet { updatePencil() }
     }
 
-    init(card: Card, in column: Column, isSelected: Bool) {
+    /// - Parameter showsAge: the age label; VoiceOver reads the age either way.
+    init(card: Card, in column: Column, isSelected: Bool, showsAge: Bool) {
         self.card = card
         self.isSelected = isSelected
         isEditable = column != .done
@@ -556,8 +561,10 @@ private final class CardView: NSView, NSDraggingSource {
             notes.lineBreakMode = .byTruncatingTail
             stack.addArrangedSubview(notes)
         }
-        if let ageText {
+        var ageLabel: NSTextField?
+        if let ageText, showsAge {
             let age = NSTextField(labelWithString: ageText)
+            ageLabel = age
             age.font = .monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .medium)
             age.textColor = .secondaryLabelColor
             age.alignment = .right
@@ -567,9 +574,7 @@ private final class CardView: NSView, NSDraggingSource {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 4
-        // Editable Cards keep room on the right so the pencil never covers text.
-        let trailing: CGFloat = isEditable ? 30 : 10
-        stack.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: trailing)
+        stack.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
@@ -578,8 +583,11 @@ private final class CardView: NSView, NSDraggingSource {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+        // On editable Cards the title and notes keep room for the pencil at the top
+        // right; the age label sits below it and runs to the edge.
         for label in stack.arrangedSubviews {
-            label.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -10 - trailing).isActive = true
+            let pencilRoom: CGFloat = isEditable && label !== ageLabel ? 20 : 0
+            label.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20 - pencilRoom).isActive = true
         }
 
         if isEditable {

@@ -6,7 +6,7 @@ The Board exists to stop the Backlog from turning into a dumping ground, so its 
 - **Column Age adds up across Column Visits.** Moving a Card from Doing back to Backlog and then into Doing again does not restart its Doing clock. Editing a Card, keeping it during Triage, and undoing a move also leave both ages unchanged. Undo deletes the reverted event (ADR 0002), so the Card's history reads as if the slip never happened.
 - **Capacity = 5 + Throughput − Σ Urgency of all Open Cards**, rounded down and capped at 20, with **no floor**. Throughput is the number of Cards moved to Done in the last 14 days. Capacity is recomputed continuously, so it can fall while the app sits unused.
 - **Discard is allowed but earns nothing.** A Discarded Card leaves the Board and stops costing Capacity, but it doesn't count as Throughput.
-- **The thresholds, the formula and the 14-day window are not settings.** The only setting is the WIP Limit (1–5).
+- **The thresholds, the formula and the 14-day window are not settings.** The only setting that touches the rules is the WIP Limit (1–5). Display settings such as hiding the age labels are fine: they change nothing the rules compute.
 
 ## Considered Options
 

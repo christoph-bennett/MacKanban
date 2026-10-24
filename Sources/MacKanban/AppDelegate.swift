@@ -14,12 +14,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // on a sample Board can't change the real WIP Limit.
         let isRealStore = Self.storeOverride == nil
         let defaults = isRealStore ? UserDefaults.standard : UserDefaults(suiteName: "com.onethingwell.mackanban.sample")!
-        defaults.register(defaults: [SettingsWindowController.wipLimitKey: Board.defaultWIPLimit])
+        defaults.register(defaults: [SettingsWindowController.wipLimitKey: Board.defaultWIPLimit,
+                                     SettingsWindowController.showsAgesKey: true])
         do {
             let model = try Board(storeURL: Self.storeURL, wipLimit: defaults.integer(forKey: SettingsWindowController.wipLimitKey))
             let board = BoardWindowController(board: model)
             let settings = SettingsWindowController(board: model, defaults: defaults, offersLaunchAtLogin: isRealStore)
             settings.onWIPLimitChange = { [weak board] in board?.reload() }
+            board.showsAges = defaults.bool(forKey: SettingsWindowController.showsAgesKey)
+            settings.onShowsAgesChange = { [weak board] in board?.showsAges = $0 }
             let statusItem = StatusItemController(board: model)
             statusItem.onNewCard = { [weak self] in self?.newCard() }
             statusItem.onOpenBoard = { [weak self] in self?.showBoard() }
