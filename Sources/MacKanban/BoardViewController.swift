@@ -382,7 +382,8 @@ private final class ColumnView: NSView {
         cards.orientation = .vertical
         cards.alignment = .leading
         cards.spacing = 8
-        cards.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 12, right: 12)
+        // 4 pt on top so the first Card's hover growth isn't clipped by the scroll view.
+        cards.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 12, right: 12)
         cards.translatesAutoresizingMaskIntoConstraints = false
         let document = FlippedView()
         document.translatesAutoresizingMaskIntoConstraints = false
@@ -402,7 +403,7 @@ private final class ColumnView: NSView {
             title.trailingAnchor.constraint(lessThanOrEqualTo: count.leadingAnchor, constant: -8),
             count.firstBaselineAnchor.constraint(equalTo: title.firstBaselineAnchor),
             count.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
+            scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),  // + the 4 pt inset: 8 pt to the first Card
             scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
             scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -531,7 +532,10 @@ private final class CardView: NSView, NSDraggingSource {
     /// Opens the edit sheet. Shown only while the pointer is over the Card.
     private let pencil = NSButton()
     private var isHovered = false {
-        didSet { updatePencil() }
+        didSet {
+            updatePencil()
+            if isHovered != oldValue { updateGrowth(animated: true) }
+        }
     }
 
     /// - Parameter showsAge: the age label; its line stays either way, and
@@ -633,7 +637,7 @@ private final class CardView: NSView, NSDraggingSource {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for area in trackingAreas { removeTrackingArea(area) }
-        guard isEditable else { return }
+        // Every Card grows under the pointer; only editable ones have the pencil.
         addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
                                        owner: self, userInfo: nil))
         // A Card rebuilt under a still pointer (after a move, an edit or the minute
@@ -641,6 +645,39 @@ private final class CardView: NSView, NSDraggingSource {
         if let window, window.isKeyWindow {
             isHovered = bounds.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil))
         }
+    }
+
+    /// How far the hovered Card grows on every side.
+    private static let hoverGrowth: CGFloat = 2
+
+    /// Grows the Card a little under the pointer, around its centre, in a short
+    /// animation; at once with Reduce Motion. A layer transform, so the Columns'
+    /// layout doesn't move.
+    private func updateGrowth(animated: Bool) {
+        guard let layer, bounds.width > 0, bounds.height > 0 else { return }
+        var target = CATransform3DIdentity
+        if isHovered {
+            let (cx, cy) = (bounds.midX, bounds.midY)
+            target = CATransform3DMakeTranslation(cx, cy, 0)
+            target = CATransform3DScale(target, 1 + 2 * Self.hoverGrowth / bounds.width,
+                                        1 + 2 * Self.hoverGrowth / bounds.height, 1)
+            target = CATransform3DTranslate(target, -cx, -cy, 0)
+        }
+        if animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            let animation = CABasicAnimation(keyPath: "transform")
+            animation.fromValue = layer.presentation()?.transform ?? layer.transform
+            animation.toValue = target
+            animation.duration = 0.12
+            animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(animation, forKey: "hoverGrowth")
+        }
+        layer.transform = target
+    }
+
+    /// Keeps the growth right for the Card's size, e.g. while the window resizes.
+    override func layout() {
+        super.layout()
+        if isHovered { updateGrowth(animated: false) }
     }
 
     override func mouseEntered(with event: NSEvent) { isHovered = true }
