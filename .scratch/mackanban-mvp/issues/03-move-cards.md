@@ -17,4 +17,4 @@
 - Keyboard: ⌘→ and ⌘← (Card menu) move the clicked Card. Off the Board's edge the menu item is disabled; other refused moves show the Board's explanation as a sheet.
 - Dropping a Card back on its own Column is ignored quietly.
 - Checked by hand by Christoph on 2026-10-23.
-- Amended on 2026-10-24 at Christoph's request: every drop the Board would refuse (Backlog → Done, out of Done, a full Doing) turns the Column red and bounces the Card back, instead of dropping and explaining in a sheet. Keyboard moves still explain. Not yet checked by hand.
+- Amended on 2026-10-24 at Christoph's request: every drop the Board would refuse (Backlog → Done, out of Done, a full Doing) turns the Column red and bounces the Card back, instead of dropping and explaining in a sheet. Keyboard moves still explain. Checked by hand by Christoph on 2026-10-24.
