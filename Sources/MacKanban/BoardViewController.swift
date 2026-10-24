@@ -334,7 +334,7 @@ private final class ColumnView: NSView {
     private var isOverLimit = false {
         didSet { needsDisplay = true }
     }
-    /// A Card dragged over a full Doing: shown in the same red, and the drop is refused.
+    /// A Card dragged over a Column that won't take it: shown in the over-limit red, and the drop is refused.
     private var isRefusingDrop = false {
         didSet { needsDisplay = true }
     }
@@ -432,11 +432,12 @@ private final class ColumnView: NSView {
     // MARK: Dropping a Card
 
     /// Not for a Card that's already here: dropping it back is a cancelled drag.
-    /// A drop that would break the WIP Limit is refused here, in red, rather than
-    /// explained afterwards; the Card goes back where it came from.
+    /// A drop the Board would refuse (a full Doing, Backlog → Done, out of Done) is
+    /// refused here, in red, rather than explained afterwards; the Card goes back
+    /// where it came from. Keyboard moves still explain in a sheet.
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard let card = Self.card(in: sender), !contains(card) else { return [] }
-        if case .wipLimitReached = dropRefusal?(card, column) {
+        if dropRefusal?(card, column) != nil {
             isRefusingDrop = true
             return []
         }
