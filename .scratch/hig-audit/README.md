@@ -160,3 +160,5 @@ Code review (medium) of the fixes: added VoiceOver names for the Title and Notes
 **Changed 2026-10-24, finding 5 reverted at Christoph's request:** "Show ages on Cards" is back in Settings (with finding 7's spacing) and the View menu is gone. The HIG would put it in the View menu, but people would look for it in Settings.
 
 **Changed 2026-10-24, finding 1:** at Christoph's request the pencil now always shows a filled accent chip while its Card is hovered (deeper under the pointer and when pressed), instead of a highlight only under the pointer.
+
+**Changed 2026-10-24, finding 9:** the outcome column moved next to its date and is headed Done/Discarded; the date column is headed Date.

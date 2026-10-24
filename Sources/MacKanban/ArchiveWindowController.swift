@@ -61,8 +61,9 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override func loadView() {
-        for (id, title, width) in [(ColumnID.title, "Card", 280.0), (ColumnID.outcome, "Outcome", 80),
-                                   (ColumnID.created, "Created", 110), (ColumnID.ended, "Done or Discarded", 130)] {
+        // The outcome sits next to its date (decided 2026-10-24), both from the Card's events.
+        for (id, title, width) in [(ColumnID.title, "Card", 250.0), (ColumnID.created, "Created", 110),
+                                   (ColumnID.outcome, "Done/Discarded", 110), (ColumnID.ended, "Date", 110)] {
             let column = NSTableColumn(identifier: id)
             column.title = title
             column.width = width
