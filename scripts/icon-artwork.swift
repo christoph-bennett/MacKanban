@@ -52,9 +52,27 @@ context.drawLinearGradient(background, start: CGPoint(x: 0, y: 1024), end: .zero
 let card = CGRect(x: 262, y: 300, width: 500, height: 380)
 let ink = 0x2B3A4F
 // Oldest at the back: red, then amber, then a fresh white Card in front.
-for (degrees, fill, edge, offset) in [(CGFloat(14), 0xF08A8A, 0xE04848, CGPoint(x: 70, y: 40)),
-                                       (6, 0xF6C08A, 0xE8964A, CGPoint(x: 30, y: 10)),
-                                       (-3, 0xFFFFFF, 0xDFE1E3, CGPoint(x: -20, y: -30))] {
+let cards: [(degrees: CGFloat, fill: Int, edge: Int, offset: CGPoint)] = [
+    (14, 0xF08A8A, 0xE04848, CGPoint(x: 70, y: 40)),
+    (6, 0xF6C08A, 0xE8964A, CGPoint(x: 30, y: 10)),
+    (-3, 0xFFFFFF, 0xDFE1E3, CGPoint(x: -20, y: -30)),
+]
+
+// The stack fills the canvas with half the margin it had at its drawn size
+// (Christoph, 2026-10-24): scaled up around the centre of its outline.
+var outline = CGRect.null
+for c in cards {
+    let transform = CGAffineTransform(translationX: 512 + c.offset.x, y: 490 + c.offset.y)
+        .rotated(by: c.degrees * .pi / 180).translatedBy(x: -512, y: -490)
+    outline = outline.union(card.applying(transform))
+}
+let scale = min((1024 - (1024 - outline.width) / 2) / outline.width,
+                (1024 - (1024 - outline.height) / 2) / outline.height)
+context.translateBy(x: 512, y: 512)
+context.scaleBy(x: scale, y: scale)
+context.translateBy(x: -outline.midX, y: -outline.midY)
+
+for (degrees, fill, edge, offset) in cards {
     inCard(degrees: degrees, offset: offset) {
         roundedRect(card, radius: 64, fill: rgb(fill), stroke: rgb(edge), width: 10, shadow: true)
     }
