@@ -12,5 +12,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp "$BIN_DIR/MacKanban" "$APP/Contents/MacOS/MacKanban"
+# Made by scripts/make-icon.sh from the artwork (scripts/icon-artwork.swift draws it).
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 codesign --force --sign - "$APP"
 echo "Built $APP"
