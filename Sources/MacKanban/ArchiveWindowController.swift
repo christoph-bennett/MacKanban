@@ -62,8 +62,8 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
 
     override func loadView() {
         // The outcome sits next to its date (decided 2026-10-24), both from the Card's events.
-        for (id, title, width) in [(ColumnID.title, "Card", 250.0), (ColumnID.created, "Created", 110),
-                                   (ColumnID.outcome, "Outcome", 110), (ColumnID.ended, "Date", 110)] {
+        for (id, title, width) in [(ColumnID.title, "Card", 200.0), (ColumnID.created, "Created", 110),
+                                   (ColumnID.outcome, "Outcome", 90), (ColumnID.ended, "Ended", 150)] {
             let column = NSTableColumn(identifier: id)
             column.title = title
             column.width = width
@@ -156,7 +156,7 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         case ColumnID.title: archived.card.title
         case ColumnID.outcome: archived.outcome == .done ? "Done" : "Discarded"
         case ColumnID.created: archived.created.formatted(date: .abbreviated, time: .omitted)
-        default: archived.ended.formatted(date: .abbreviated, time: .omitted)
+        default: archived.ended.formatted(date: .abbreviated, time: .shortened)  // when it was finished or Discarded
         }
         let cell = tableView.makeView(withIdentifier: id, owner: self) as? NSTextField ?? {
             let field = NSTextField(labelWithString: "")
