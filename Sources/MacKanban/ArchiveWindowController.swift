@@ -82,14 +82,22 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         scroll.documentView = table
         scroll.hasVerticalScroller = true
 
+        // Over the scroll view, not inside it: a scroll view lays out its own subviews.
+        let container = NSView()
         emptyLabel.textColor = .secondaryLabelColor
-        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(emptyLabel)
+        for subview in [scroll, emptyLabel] as [NSView] {
+            subview.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(subview)
+        }
         NSLayoutConstraint.activate([
-            emptyLabel.centerXAnchor.constraint(equalTo: scroll.centerXAnchor),
-            emptyLabel.centerYAnchor.constraint(equalTo: scroll.centerYAnchor),
+            scroll.topAnchor.constraint(equalTo: container.topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            emptyLabel.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            emptyLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
         ])
-        view = scroll
+        view = container
     }
 
     // Done Cards reach the Archive as time passes, not only after a change.
