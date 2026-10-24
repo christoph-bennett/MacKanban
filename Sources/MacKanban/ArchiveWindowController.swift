@@ -2,7 +2,7 @@ import AppKit
 import KanbanCore
 
 /// The Archive window (⌘⇧A): archived Done Cards and Discarded Cards, the most
-/// recently ended first, read-only. A double-click or Return opens a Card.
+/// recently ended first, read-only. A double-click or Return opens a Card; Esc closes the window.
 @MainActor
 final class ArchiveWindowController: NSWindowController {
     private let archive: ArchiveViewController
@@ -170,6 +170,11 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
             cell.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
         return cell
+    }
+
+    /// Esc closes the Archive (an open Card's sheet gets Esc first and closes itself).
+    override func cancelOperation(_ sender: Any?) {
+        view.window?.performClose(sender)
     }
 
     @objc private func openClicked(_ sender: Any?) {
