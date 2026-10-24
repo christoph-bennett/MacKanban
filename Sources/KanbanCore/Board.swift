@@ -43,6 +43,7 @@ public enum BoardError: LocalizedError, Equatable {
     case cardIsDone
     case cannotUndo
     case cardExists
+    case creationBlocked(capacity: Int, openCards: Int, cardsToFree: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -55,6 +56,9 @@ public enum BoardError: LocalizedError, Equatable {
         case let .wipLimitReached(limit): "Doing is at its WIP Limit of \(limit). Finish a Card before starting another."
         case .cardIsDone: "Done Cards stay as they were finished."
         case .cardExists: "A Card with this ID already exists."
+        case let .creationBlocked(capacity, openCards, cardsToFree):
+            "Capacity \(capacity), Open Cards \(openCards): finish or Discard \(cardsToFree) "
+                + (cardsToFree == 1 ? "Card." : "Cards.")
         case .cannotUndo: "This can't be undone any more: the Card has changed since."
         case .wipLimitOutOfRange: "The WIP Limit is between \(Board.wipLimits.lowerBound) and \(Board.wipLimits.upperBound)."
         }
@@ -95,6 +99,9 @@ public final class Board {
     public func createCard(title: String, notes: String, id: UUID = UUID()) throws -> Change {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { throw BoardError.emptyTitle }
+        if case let .blocked(capacity, openCards, cardsToFree) = try creationGate() {
+            throw BoardError.creationBlocked(capacity: capacity, openCards: openCards, cardsToFree: cardsToFree)
+        }
         guard try context.count(for: Self.cardRequest(id)) == 0 else { throw BoardError.cardExists }
         let event = try change {
             let card = NSManagedObject(entity: StoreModel.shared.entitiesByName["Card"]!, insertInto: context)
@@ -110,13 +117,16 @@ public final class Board {
     public func move(_ id: UUID, to column: Column) throws -> Change {
         let (card, from) = try cardOnBoard(id)
         if let refusal = try moveRefusal(from: from, to: column) { throw refusal }
-        let event = try change {
-            let event = try record(.moved, for: card)
-            event.setValue(from.rawValue, forKey: "fromColumn")
-            event.setValue(column.rawValue, forKey: "toColumn")
-            return event
-        }
+        let event = try change { try recordMove(of: card, from: from, to: column) }
         return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
+    }
+
+    @discardableResult
+    private func recordMove(of card: NSManagedObject, from: Column, to column: Column) throws -> NSManagedObject {
+        let event = try record(.moved, for: card)
+        event.setValue(from.rawValue, forKey: "fromColumn")
+        event.setValue(column.rawValue, forKey: "toColumn")
+        return event
     }
 
     /// Why moving the Card to `column` would be refused, or `nil` if it's allowed:
@@ -187,23 +197,30 @@ public final class Board {
 
     /// Undoes `change` by deleting the event it recorded, so the slip never shows up
     /// in the history (ADR 0002). Refused once the Card has moved on since (its
-    /// Column history has a newer event; Edited events don't count), after
+    /// Column history has a newer event; Edited and Triaged events don't count), after
     /// `undoWindow`, or when it would put Doing over the WIP Limit.
     public func revert(_ change: Change) throws {
         let card = try anyCard(change.cardID)
         let history = Self.history(of: card)
-        let placing = history.filter { $0.value(forKey: "kind") as? String != Event.Kind.edited.rawValue }
+        let placing = history.filter {
+            [Event.Kind.created, .moved, .discarded].map(\.rawValue).contains($0.value(forKey: "kind") as? String)
+        }
         guard let event = placing.last, event.objectID.uriRepresentation() == change.event,
               !change.isCreation || placing.count == 1,
               let time = event.value(forKey: "timestamp") as? Date, now().timeIntervalSince(time) <= Self.undoWindow
         else { throw BoardError.cannotUndo }
 
+        let companions = history.filter { change.companions.contains($0.objectID.uriRepresentation()) }
         let restored = Self.column(after: Self.visits(of: history.filter { $0 != event }))
         if restored == .doing, Self.column(of: card) != .doing, try wipStatus().count >= wipLimit {
             throw BoardError.wipLimitReached(limit: wipLimit)
         }
         try self.change {
-            context.delete(change.isCreation ? card : event)  // a Card's events go with it
+            if change.isCreation {
+                context.delete(card)  // a Card's events go with it
+            } else {
+                for event in [event] + companions { context.delete(event) }
+            }
         }
     }
 
@@ -312,6 +329,69 @@ public final class Board {
         return BoardState(columns: columns, capacity: capacity)
     }
 
+    /// Whether creating a Card goes straight ahead or needs a Triage first.
+    public func creationGate() throws -> CreationGate {
+        let state = try state()
+        let open = (state.columns[.backlog] ?? []) + (state.columns[.doing] ?? [])
+        let capacity = state.capacity
+        guard capacity.free > 0 else {
+            // Discarding the most urgent first frees a slot soonest; finishing a Card
+            // also adds Throughput, so this many is always enough.
+            var removed = 0
+            var aging = capacity.aging
+            for urgency in open.map(\.urgency).sorted(by: >) {
+                removed += 1
+                aging -= urgency
+                if Capacity(throughput: capacity.throughput, aging: aging, openCards: capacity.openCards - removed).free > 0 { break }
+            }
+            return .blocked(capacity: capacity.total, openCards: capacity.openCards, cardsToFree: removed)
+        }
+        // On a tie, the first in display order: Backlog's oldest before Doing.
+        let mostUrgent = open.reduce(nil as Card?) { best, card in
+            card.urgency > best?.urgency ?? -1 ? card : best
+        }
+        guard let mostUrgent, state.capacity.free <= CreationGate.triageThreshold || mostUrgent.urgency >= 1
+        else { return .open }
+        return .triage(mostUrgent)
+    }
+
+    /// Records the outcome of a Triage of the Card, after starting or Discarding
+    /// it for those outcomes. Only those two can be undone: they return the Change.
+    @discardableResult
+    public func triage(_ id: UUID, outcome: TriageOutcome) throws -> Change? {
+        let (card, column) = try cardOnBoard(id)
+        guard column != .done else { throw BoardError.cardIsDone }  // only Open Cards are triaged
+        if outcome == .started, let refusal = try moveRefusal(from: column, to: .doing) { throw refusal }
+        let (placing, triaged) = try change {
+            let placing: NSManagedObject? = switch outcome {
+            case .started: try recordMove(of: card, from: column, to: .doing)
+            case .discarded: try record(.discarded, for: card)
+            case .kept, .dismissed: nil
+            }
+            let triaged = try record(.triaged, for: card)
+            triaged.setValue(outcome.rawValue, forKey: "triageOutcome")
+            return (placing, triaged)
+        }
+        guard let placing else { return nil }
+        return Change(cardID: id, isCreation: false, event: placing.objectID.uriRepresentation(),
+                      companions: [triaged.objectID.uriRepresentation()])
+    }
+
+    /// What the New Card button calls: the gate, and when it's blocked, a Creation
+    /// Blocked Board Event for this attempt.
+    @discardableResult
+    public func attemptCreation() throws -> CreationGate {
+        let gate = try creationGate()
+        if case let .blocked(capacity, openCards, _) = gate {
+            try change {
+                let event = try record(.creationBlocked, for: nil)
+                event.setValue(capacity, forKey: "capacity")
+                event.setValue(openCards, forKey: "openCardCount")
+            }
+        }
+        return gate
+    }
+
     /// The whole event log, oldest first.
     public func events() throws -> [Event] {
         let request = NSFetchRequest<NSManagedObject>(entityName: "Event")
@@ -325,7 +405,10 @@ public final class Board {
                          from: (object.value(forKey: "fromColumn") as? String).flatMap(Column.init),
                          to: (object.value(forKey: "toColumn") as? String).flatMap(Column.init),
                          fromNumber: (object.value(forKey: "fromNumber") as? NSNumber)?.intValue,
-                         toNumber: (object.value(forKey: "toNumber") as? NSNumber)?.intValue)
+                         toNumber: (object.value(forKey: "toNumber") as? NSNumber)?.intValue,
+                         triageOutcome: (object.value(forKey: "triageOutcome") as? String).flatMap(TriageOutcome.init),
+                         capacity: (object.value(forKey: "capacity") as? NSNumber)?.intValue,
+                         openCards: (object.value(forKey: "openCardCount") as? NSNumber)?.intValue)
         }
     }
 
@@ -369,7 +452,7 @@ public final class Board {
                 visits.append(ColumnVisit(column: to, entered: time))
             case .discarded:
                 if !visits.isEmpty { visits[visits.count - 1].left = time }
-            case .edited, .wipLimitChanged, nil:
+            case .edited, .triaged, .wipLimitChanged, .creationBlocked, nil:
                 continue
             }
         }

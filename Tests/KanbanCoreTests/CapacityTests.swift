@@ -68,8 +68,9 @@ struct CapacityTests {
     }
 
     @Test func capacityHasNoFloor() throws {
+        for index in 1...3 { try finish("Done \(index)") }  // Capacity 8 makes room for 7 Cards
         for index in 1...7 { _ = try create("Old \(index)") }
-        clock.advance(days: 30)  // 7 fully red Cards
+        clock.advance(days: 30)  // 7 fully red Cards, and the Throughput has run out
 
         let capacity = try board.capacity()
         #expect(capacity.total == -2)

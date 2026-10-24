@@ -124,12 +124,18 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
     }
 
     @objc private func cancel(_ sender: Any?) {
-        dismiss(nil)
+        close()
     }
 
     /// Esc closes the sheet in every mode, including read-only.
     override func cancelOperation(_ sender: Any?) {
-        dismiss(nil)
+        close()
+    }
+
+    /// The whole sheet, also when this is the title-and-notes step inside the
+    /// New Card sheet.
+    private func close() {
+        (parent ?? self).dismiss(nil)
     }
 }
 

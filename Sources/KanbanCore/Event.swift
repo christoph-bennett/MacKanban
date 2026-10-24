@@ -8,7 +8,9 @@ public struct Event: Equatable, Sendable {
         case moved
         case edited
         case discarded
+        case triaged
         case wipLimitChanged
+        case creationBlocked
     }
 
     public let kind: Kind
@@ -20,9 +22,14 @@ public struct Event: Equatable, Sendable {
     /// WIP Limit Changed: the old and the new limit.
     public let fromNumber: Int?
     public let toNumber: Int?
+    /// Triaged: what the user did with the Card.
+    public let triageOutcome: TriageOutcome?
+    /// Creation Blocked: the Capacity and Open Card count at that moment.
+    public let capacity: Int?
+    public let openCards: Int?
 
     public init(kind: Kind, timestamp: Date, cardID: UUID?, from: Column? = nil, to: Column? = nil,
-                fromNumber: Int? = nil, toNumber: Int? = nil) {
+                fromNumber: Int? = nil, toNumber: Int? = nil, triageOutcome: TriageOutcome? = nil, capacity: Int? = nil, openCards: Int? = nil) {
         self.kind = kind
         self.timestamp = timestamp
         self.cardID = cardID
@@ -30,5 +37,19 @@ public struct Event: Equatable, Sendable {
         self.to = to
         self.fromNumber = fromNumber
         self.toNumber = toNumber
+        self.triageOutcome = triageOutcome
+        self.capacity = capacity
+        self.openCards = openCards
     }
+}
+
+/// What the user did with the Card a Triage showed them (GLOSSARY.md).
+public enum TriageOutcome: String, Sendable {
+    /// Moved to Doing.
+    case started
+    case discarded
+    /// Explicitly left where it is, with its Urgency unchanged.
+    case kept
+    /// The sheet was closed before deciding.
+    case dismissed
 }

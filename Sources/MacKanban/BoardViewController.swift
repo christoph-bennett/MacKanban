@@ -79,12 +79,53 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         }
     }
 
+    /// The New Card sheet, behind the creation gate: a blocked attempt is recorded
+    /// as it opens, and a Triage start or Discard can be undone on its own.
     func newCard() {
-        presentCardSheet(.new) { [weak self] title, notes in
+        guard !isShowingSheet else { return }
+        let sheet: NewCardSheetController
+        do {
+            let gate = try board.attemptCreation()
+            var column = Column.backlog
+            var startRefusal: BoardError?
+            if case let .triage(card) = gate {
+                if try board.cards(in: .doing).contains(where: { $0.id == card.id }) { column = .doing }
+                startRefusal = try board.moveRefusal(card.id, to: .doing)
+                sheet = NewCardSheetController(gate: gate, column: column, capacity: try board.capacity(), startRefusal: startRefusal)
+                sheet.onTriage = { [weak self] outcome in try self?.triage(card.id, outcome) }
+            } else {
+                sheet = NewCardSheetController(gate: gate, capacity: try board.capacity(), startRefusal: nil)
+            }
+        } catch {
+            return show(error)
+        }
+        sheet.onSave = { [weak self] title, notes in
             guard let self else { return }
             let id = UUID()  // kept for redo, so later redos still find the Card
-            try undoably("New Card") { [board] in try board.createCard(title: title, notes: notes, id: id) }
+            do {
+                try undoably("New Card") { [board] in try board.createCard(title: title, notes: notes, id: id) }
+            } catch let error as BoardError {
+                // Blocked while the sheet was open: an attempt like any other, so it's recorded.
+                if case .creationBlocked = error { try? board.attemptCreation() }
+                throw error
+            }
+            reload()
         }
+        presentAsSheet(sheet)
+    }
+
+    private func triage(_ id: UUID, _ outcome: TriageOutcome) throws {
+        switch outcome {
+        case .started, .discarded:
+            try undoably(outcome == .started ? "Start" : "Discard") { [board] in
+                // Redo records the Triage again, so its undo removes both events again.
+                guard let change = try board.triage(id, outcome: outcome) else { throw BoardError.cannotUndo }
+                return change
+            }
+        case .kept, .dismissed:
+            try board.triage(id, outcome: outcome)
+        }
+        reload()
     }
 
     /// Opens the Card's sheet: editable in Backlog and Doing, read-only in Done.
@@ -617,22 +658,10 @@ private final class CardView: NSView, NSDraggingSource {
     // Called with the view's appearance current, so the system colours resolve
     // for light or dark before they're mixed.
     override func updateLayer() {
-        let urgency = CGFloat(card.urgency)
-        let tint = Self.tint(for: urgency)
-        layer?.backgroundColor = Self.mix(.controlBackgroundColor, tint, urgency * 0.45).cgColor
-        let border = isSelected ? NSColor.controlAccentColor : Self.mix(.separatorColor, tint, urgency)
+        layer?.backgroundColor = UrgencyTint.background(for: card.urgency).cgColor
+        let border = isSelected ? NSColor.controlAccentColor : UrgencyTint.border(for: card.urgency)
         layer?.borderColor = border.cgColor
         layer?.borderWidth = isSelected ? 2 : 1
-    }
-
-    /// Amber, turning red over the second half of the Urgency range.
-    private static func tint(for urgency: CGFloat) -> NSColor {
-        mix(.systemOrange, .systemRed, max(0, urgency - 0.5) * 2)
-    }
-
-    private static func mix(_ base: NSColor, _ other: NSColor, _ fraction: CGFloat) -> NSColor {
-        guard let base = base.usingColorSpace(.sRGB), let other = other.usingColorSpace(.sRGB) else { return base }
-        return base.blended(withFraction: fraction, of: other) ?? base
     }
 
     override var wantsUpdateLayer: Bool { true }
@@ -643,7 +672,29 @@ private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }
 
-private extension Card {
+/// A Card's colours for its Urgency, for the Board and the Triage sheet. Resolve
+/// them with the view's appearance current, so system colours mix for light or dark.
+enum UrgencyTint {
+    static func background(for urgency: Double) -> NSColor {
+        mix(.controlBackgroundColor, tint(for: urgency), urgency * 0.45)
+    }
+
+    static func border(for urgency: Double) -> NSColor {
+        mix(.separatorColor, tint(for: urgency), urgency)
+    }
+
+    /// Amber, turning red over the second half of the Urgency range.
+    private static func tint(for urgency: Double) -> NSColor {
+        mix(.systemOrange, .systemRed, max(0, urgency - 0.5) * 2)
+    }
+
+    private static func mix(_ base: NSColor, _ other: NSColor, _ fraction: Double) -> NSColor {
+        guard let base = base.usingColorSpace(.sRGB), let other = other.usingColorSpace(.sRGB) else { return base }
+        return base.blended(withFraction: fraction, of: other) ?? base
+    }
+}
+
+extension Card {
     /// "12d" in Backlog, "4d in Doing" in Doing, hours under a day; none in Done.
     func ageLabel(in column: Column) -> String? {
         guard let age else { return nil }

@@ -106,6 +106,16 @@ struct UndoTests {
         #expect(try board.events().isEmpty)
     }
 
+    @Test func aKeptTriageDoesNotBlockUndo() throws {
+        let id = try board.createCard(title: "Started", notes: "").cardID
+        let start = try board.move(id, to: .doing)
+        try board.triage(id, outcome: .kept)
+
+        try board.revert(start)
+
+        #expect(try board.cards(in: .backlog).map(\.id) == [id])
+    }
+
     @Test func undoIsForSlipsNotForRewritingHistory() throws {
         let id = try board.createCard(title: "Finished", notes: "").cardID
         try board.move(id, to: .doing)
