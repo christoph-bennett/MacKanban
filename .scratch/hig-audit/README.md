@@ -6,6 +6,8 @@ Audited 2026-10-24 against Apple's Human Interface Guidelines (pages: Layout, Bu
 
 Answer per number: **fix**, **skip**, or **change** (with what).
 
+**Answered 2026-10-24:** fix 1 to 11 (1 as the hover button, not removed; 5 in the View menu only), skip 12.
+
 ---
 
 ## Board window
@@ -42,7 +44,7 @@ Answer per number: **fix**, **skip**, or **change** (with what).
 
 - **Now:** a checkbox in Settings.
 - **HIG, Settings:** "When possible, prefer letting people modify task-specific options without going to your settings area. For example, if people can adjust things like showing or hiding parts of the current view … make these options available in the screens they affect." And: "Minimize the number of settings you offer."
-- **Proposal:** a **View** menu with **Show Card Ages** (a checkmark item, like Finder's View > Show Path Bar), and remove the checkbox from Settings. The choice is still remembered, per store, as now. (*fix, View menu only* / *fix, both places* / *skip*)
+- **Proposal:** a **View** menu with **Show Card Ages** (switching to **Hide Card Ages** while shown, like Finder's View > Show Path Bar / Hide Path Bar), and remove the checkbox from Settings. The choice is still remembered, per store, as now. (*fix, View menu only* / *fix, both places* / *skip*)
 
 ---
 
@@ -132,3 +134,25 @@ Answer per number: **fix**, **skip**, or **change** (with what).
 
 - Dark mode: checked by hand earlier (tickets 05, 11); no layout differences.
 - Focus rings and keyboard navigation inside the sheets: only checkable by hand.
+
+---
+
+## Done 2026-10-24
+
+All eleven fixes are in; screenshots of the result are in `after/`:
+
+1. The pencil is an accessory button: a 22 × 22 pt frame 4 pt from the corner, 12 pt medium symbol, a rounded highlight under the pointer and a press state (`showsBorderOnlyWhileMouseInside`). Still hover-only.
+2. Cards have 10 pt padding on all sides.
+3. The gauge has no border of its own at rest; like other toolbar buttons it shows the toolbar highlight under the pointer and a press state.
+4. File > **New Card…**. (The toolbar tooltip stays "New Card (⌘N)": the ellipsis rule is for labels, not tooltips.)
+5. **View > Show Card Ages** / **Hide Card Ages** (the title says what choosing it will do, as in Finder; first built as a checkmark item, corrected after the review); the checkbox is gone from Settings. Still remembered per store.
+6. "MacKanban Settings".
+7. Explanations 4 pt below their control, 16 pt between settings, margins 30 pt at the sides and 20 pt top and bottom.
+8. "Title" label above the title field; the notes box has a rounded 6 pt border in the separator colour (drawn on a container: on the scroll view itself its clip view covered it).
+9. Archive column header **Outcome**.
+10. While the menu is open, the icon is the plain template (the menu bar highlights it); coloured again when it closes.
+11. Menu header **Move to Done**.
+
+Not checkable by screenshot: the pencil's and the gauge's highlight under the pointer and their press states, the View menu's Show/Hide title.
+
+Code review (medium) of the fixes: added VoiceOver names for the Title and Notes fields (the placeholder had been the title field's only name); the gauge got back the toolbar highlight and press state; the status menu reads the Board once per opening instead of three times; Show/Hide Card Ages instead of a checkmark; the tooltip's ellipsis removed. Skipped: the pencil's highlight is missing when a Card is rebuilt under a still pointer (it appears as soon as the pointer moves); menu items stay enabled after a failed launch (MacKanban quits right after its alert).

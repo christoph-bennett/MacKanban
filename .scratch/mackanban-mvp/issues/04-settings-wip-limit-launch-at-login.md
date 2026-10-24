@@ -21,3 +21,4 @@
 - Amended after trying it: dragging a Card over a full Doing turns the Column red (as when over the limit) and refuses the drop, so the Card goes back instead of an alert explaining afterwards. Other refused drops (e.g. Backlog → Done) still drop and explain. (Since amended: every refused drop is red and bounces back, see ticket 03.) The Board has `moveRefusal(_:to:)` for this.
 - The red refused drop over a full Doing checked by hand by Christoph on 2026-10-23.
 - Amended on 2026-10-24: Settings gained "Show ages on Cards" (see ticket 05). Fixed on the way: the notes under each setting were cut off after two lines (measured for 300 pt, squeezed narrower by the grid); they now have a fixed width. Checked by screenshot.
+- HIG audit (2026-10-24, `.scratch/hig-audit/`): the window is titled "MacKanban Settings" and uses MacJot's spacing (explanation 4 pt below its control, 16 pt between settings, 30/20 pt margins); the age checkbox moved to the View menu.

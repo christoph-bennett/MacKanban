@@ -55,13 +55,17 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
         let heading = NSTextField(labelWithString: headingText)
         heading.font = .preferredFont(forTextStyle: .headline)
 
-        titleField.placeholderString = "Title"
+        // Both fields labelled the same way (HIG audit, finding 8).
+        let titleLabel = NSTextField(labelWithString: "Title")
+        titleLabel.textColor = .secondaryLabelColor
+        titleField.setAccessibilityTitleUIElement(titleLabel)  // VoiceOver: "Title"
         titleField.stringValue = card?.title ?? ""
         titleField.isEditable = !isReadOnly
         titleField.delegate = self
 
         let notesLabel = NSTextField(labelWithString: "Notes")
         notesLabel.textColor = .secondaryLabelColor
+        notesView.setAccessibilityTitleUIElement(notesLabel)
         notesView.font = .preferredFont(forTextStyle: .body)
         notesView.string = card?.notes ?? ""
         notesView.isRichText = false
@@ -71,7 +75,8 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
         let notesScroll = NSScrollView()
         notesScroll.documentView = notesView
         notesScroll.hasVerticalScroller = true
-        notesScroll.borderType = .bezelBorder
+        notesScroll.borderType = .noBorder
+        let notesBox = RoundedBox(around: notesScroll)
         notesView.autoresizingMask = [.width]
         notesView.isVerticallyResizable = true
         notesView.textContainer?.widthTracksTextView = true
@@ -94,19 +99,20 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
             buttons.addArrangedSubview(saveButton)
         }
 
-        let stack = NSStackView(views: [heading, titleField, notesLabel, notesScroll, buttons])
+        let stack = NSStackView(views: [heading, titleLabel, titleField, notesLabel, notesBox, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 10
+        stack.spacing = 12
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
+        stack.setCustomSpacing(4, after: titleLabel)  // a label sits with its field
         stack.setCustomSpacing(4, after: notesLabel)
-        stack.setCustomSpacing(16, after: notesScroll)
-        for view in [titleField, notesScroll, buttons] {
+        stack.setCustomSpacing(16, after: notesBox)
+        for view in [titleField, notesBox, buttons] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         }
         NSLayoutConstraint.activate([
             stack.widthAnchor.constraint(equalToConstant: 400),
-            notesScroll.heightAnchor.constraint(equalToConstant: 100),
+            notesBox.heightAnchor.constraint(equalToConstant: 100),
         ])
         view = stack
     }
@@ -156,5 +162,37 @@ private final class NotesTextView: NSTextView {
         }
         insertNewline(nil)
         return true
+    }
+}
+
+/// The notes box, with the rounded border of the title field above it rather than
+/// the older square bezel. The border is on this container: drawn on the scroll
+/// view's own layer, its clip view covers it.
+private final class RoundedBox: NSView {
+    init(around content: NSView) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.masksToBounds = true
+        layer?.borderWidth = 1
+        content.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 1),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -1),
+            content.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    // Called with the view's appearance current, so the colour resolves for light or dark.
+    override func updateLayer() {
+        layer?.borderColor = NSColor.separatorColor.cgColor
+        layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
     }
 }

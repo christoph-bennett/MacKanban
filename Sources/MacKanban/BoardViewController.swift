@@ -581,7 +581,7 @@ private final class CardView: NSView, NSDraggingSource {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 4
-        stack.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        stack.edgeInsets = NSEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
@@ -598,9 +598,14 @@ private final class CardView: NSView, NSDraggingSource {
         }
 
         if isEditable {
-            pencil.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit")
-            pencil.isBordered = false
+            // An accessory button (HIG audit, finding 1): a rounded highlight under the
+            // pointer and a press state, with room around the symbol to click.
+            pencil.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit")?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .medium))
             pencil.bezelStyle = .accessoryBarAction
+            pencil.isBordered = true
+            pencil.showsBorderOnlyWhileMouseInside = true
+            pencil.imagePosition = .imageOnly
             pencil.contentTintColor = .secondaryLabelColor
             pencil.toolTip = "Edit (Return)"
             pencil.target = self
@@ -608,8 +613,10 @@ private final class CardView: NSView, NSDraggingSource {
             pencil.translatesAutoresizingMaskIntoConstraints = false
             addSubview(pencil)
             NSLayoutConstraint.activate([
-                pencil.topAnchor.constraint(equalTo: topAnchor, constant: 6),
-                pencil.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+                pencil.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+                pencil.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+                pencil.widthAnchor.constraint(equalToConstant: 22),
+                pencil.heightAnchor.constraint(equalToConstant: 22),
             ])
             updatePencil()
         }

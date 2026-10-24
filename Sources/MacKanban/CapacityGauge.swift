@@ -9,7 +9,10 @@ final class CapacityGauge: NSButton {
 
     init() {
         super.init(frame: .zero)
+        // No border of its own at rest, like the New Card item beside it (HIG audit,
+        // finding 3), but the toolbar's highlight under the pointer and a press state.
         bezelStyle = .toolbar
+        showsBorderOnlyWhileMouseInside = true
         font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .medium)
         target = self
         action = #selector(showBreakdown(_:))

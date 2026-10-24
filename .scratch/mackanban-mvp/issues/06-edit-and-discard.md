@@ -18,3 +18,4 @@
 - The Card menu (Edit Card… / Open Card… for Done, Discard Card ⌘⌫, moves) is off while a sheet is up, so shortcuts typed in the sheet can't act on the Card being edited.
 - Discard has no confirmation: ⌘Z (ticket 07) makes it reversible. Until 07 lands, a Discard can't be taken back.
 - Checked by hand by Christoph on 2026-10-23.
+- HIG audit (2026-10-24, `.scratch/hig-audit/`): the hover pencil is a real accessory button (22 × 22 pt, highlight under the pointer, press state); the Card sheet labels Title like Notes, and the notes box has a rounded border.

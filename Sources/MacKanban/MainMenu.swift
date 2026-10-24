@@ -17,7 +17,7 @@ enum MainMenu {
         main.addItem(submenu: app, title: "MacKanban")
 
         let file = NSMenu(title: "File")
-        file.addItem(withTitle: "New Card", action: #selector(AppDelegate.newCard), keyEquivalent: "n")
+        file.addItem(withTitle: "New Card…", action: #selector(AppDelegate.newCard), keyEquivalent: "n")
             .target = appDelegate
         file.addItem(.separator())
         file.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
@@ -32,6 +32,11 @@ enum MainMenu {
         edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         main.addItem(submenu: edit, title: "Edit")
+
+        let view = NSMenu(title: "View")
+        view.addItem(withTitle: "Show Card Ages", action: #selector(AppDelegate.toggleCardAges(_:)), keyEquivalent: "")
+            .target = appDelegate
+        main.addItem(submenu: view, title: "View")
 
         let card = NSMenu(title: "Card")
         // ⌘→ and ⌘←: the selected Card moves the way the Columns read.

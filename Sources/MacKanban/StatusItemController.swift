@@ -14,6 +14,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let board: Board
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private var refreshTimer: Timer?
+    /// While the menu is open the icon is the plain template, which the menu bar
+    /// highlights correctly; a coloured image would stay coloured (HIG audit, finding 10).
+    private var isMenuOpen = false
 
     init(board: Board) {
         self.board = board
@@ -56,7 +59,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         var image = NSImage(systemSymbolName: isFull ? "rectangle.split.3x1.fill" : "rectangle.split.3x1",
                             accessibilityDescription: "MacKanban")
-        if let tint {
+        if let tint, !isMenuOpen {
             // The menu bar ignores a tint on template images, so colour the symbol itself.
             image = image?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [tint]))
             image?.isTemplate = false
@@ -74,6 +77,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     /// Built fresh each time it opens, so it never shows a Card that's gone.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        isMenuOpen = true  // just before it opens: the icon below is drawn as the template
         menu.removeAllItems()
         guard let state = try? board.state() else {
             menu.addItem(disabled("The Board can't be read right now."))
@@ -84,7 +88,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.addItem(disabled(Self.capacityLine(state.capacity)))
         menu.addItem(.separator())
-        menu.addItem(.sectionHeader(title: "Doing: choose a Card to move it to Done"))
+        menu.addItem(.sectionHeader(title: "Move to Done"))
         let doing = state.columns[.doing] ?? []
         if doing.isEmpty {
             menu.addItem(disabled("Nothing in Doing"))
@@ -97,6 +101,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(cardItem)
         }
         addActions(to: menu)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        isMenuOpen = false
+        refresh()
     }
 
     private func addActions(to menu: NSMenu) {

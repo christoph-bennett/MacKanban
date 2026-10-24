@@ -61,7 +61,7 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override func loadView() {
-        for (id, title, width) in [(ColumnID.title, "Card", 280.0), (ColumnID.outcome, "", 80),
+        for (id, title, width) in [(ColumnID.title, "Card", 280.0), (ColumnID.outcome, "Outcome", 80),
                                    (ColumnID.created, "Created", 110), (ColumnID.ended, "Done or Discarded", 130)] {
             let column = NSTableColumn(identifier: id)
             column.title = title
