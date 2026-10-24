@@ -741,9 +741,9 @@ private final class CardView: NSView, NSDraggingSource {
 }
 
 /// The Card's edit button, shown while the pointer is over the Card: the pencil in
-/// the accent colour on an opaque chip of the neutral Card colour with a touch of
-/// accent, so it stands out the same on white and tinted Cards (a see-through
-/// fill turned muddy over red). The fill deepens under the pointer and while pressed (HIG: a
+/// the text colour on a see-through neutral chip, a deeper shade of whatever colour
+/// the Card has (grey on white, deeper amber or red on aging Cards). A fixed
+/// colour clashed with one tint or another. The fill deepens under the pointer and while pressed (HIG: a
 /// custom button needs a press state).
 private final class PencilButton: NSButton {
     private var isPointerInside = false {
@@ -757,7 +757,7 @@ private final class PencilButton: NSButton {
         super.init(frame: .zero)
         isBordered = false
         imagePosition = .imageOnly
-        contentTintColor = .controlAccentColor
+        contentTintColor = .labelColor
         wantsLayer = true
         layer?.cornerRadius = 6
         updateFill()
@@ -791,15 +791,13 @@ private final class PencilButton: NSButton {
         didSet { if isHidden { isPointerInside = false } }
     }
 
-    /// Resolved for light or dark and the user's accent colour.
+    /// Black over the Card in light mode, white in dark mode (a little stronger, as
+    /// dark tints need more to show).
     private func updateFill() {
-        let accent: CGFloat = isPressed ? 0.35 : isPointerInside ? 0.25 : 0.15
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            guard let base = NSColor.controlBackgroundColor.usingColorSpace(.sRGB),
-                  let tint = NSColor.controlAccentColor.usingColorSpace(.sRGB)
-            else { return }
-            layer?.backgroundColor = (base.blended(withFraction: accent, of: tint) ?? base).cgColor
-        }
+        let isDark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let strength: CGFloat = isPressed ? 0.22 : isPointerInside ? 0.15 : 0.09
+        let shade: NSColor = isDark ? .white : .black
+        layer?.backgroundColor = shade.withAlphaComponent(isDark ? strength * 1.3 : strength).cgColor
     }
 }
 
