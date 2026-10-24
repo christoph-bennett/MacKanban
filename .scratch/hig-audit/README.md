@@ -161,4 +161,4 @@ Code review (medium) of the fixes: added VoiceOver names for the Title and Notes
 
 **Changed 2026-10-24, finding 1:** at Christoph's request the pencil now always shows a filled accent chip while its Card is hovered (deeper under the pointer and when pressed), instead of a highlight only under the pointer.
 
-**Changed 2026-10-24, finding 9:** the outcome column moved next to its date and is headed Done/Discarded; the date column is headed Date.
+**Changed 2026-10-24, finding 9:** the Outcome column moved next to its date; the date column is headed Date.

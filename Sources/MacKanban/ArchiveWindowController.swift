@@ -63,7 +63,7 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
     override func loadView() {
         // The outcome sits next to its date (decided 2026-10-24), both from the Card's events.
         for (id, title, width) in [(ColumnID.title, "Card", 250.0), (ColumnID.created, "Created", 110),
-                                   (ColumnID.outcome, "Done/Discarded", 110), (ColumnID.ended, "Date", 110)] {
+                                   (ColumnID.outcome, "Outcome", 110), (ColumnID.ended, "Date", 110)] {
             let column = NSTableColumn(identifier: id)
             column.title = title
             column.width = width
