@@ -597,7 +597,7 @@ private final class CardView: NSView, NSDraggingSource {
         // On editable Cards the title and notes keep room for the pencil at the top
         // right; the age label sits below it and runs to the edge.
         for label in stack.arrangedSubviews {
-            let pencilRoom: CGFloat = isEditable && label !== ageLabel ? 20 : 0
+            let pencilRoom: CGFloat = isEditable && label !== ageLabel ? 28 : 0  // the chip's 22 pt + 6 pt
             label.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20 - pencilRoom).isActive = true
         }
 
@@ -610,15 +610,18 @@ private final class CardView: NSView, NSDraggingSource {
             pencil.translatesAutoresizingMaskIntoConstraints = false
             addSubview(pencil)
             NSLayoutConstraint.activate([
-                pencil.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-                pencil.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+                // Inside the content, not in the corner (HIG Layout, alignment): its right
+                // edge on the age label's, 10 pt in, and centred on the title's first
+                // 16 pt line, (10 + 8) − 11 = 7 pt from the top.
+                pencil.topAnchor.constraint(equalTo: topAnchor, constant: 7),
+                pencil.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
                 pencil.widthAnchor.constraint(equalToConstant: 22),
                 pencil.heightAnchor.constraint(equalToConstant: 22),
             ])
-            // A one-line title without notes would bring the age up to 4 pt under the
-            // pencil; keep 8 pt. Always, hidden pencil or not, so hovering doesn't
+            // A one-line title without notes would bring the age right under the
+            // pencil; keep 6 pt. Always, hidden pencil or not, so hovering doesn't
             // change the Card's height.
-            ageLabel?.topAnchor.constraint(greaterThanOrEqualTo: pencil.bottomAnchor, constant: 8).isActive = true
+            ageLabel?.topAnchor.constraint(greaterThanOrEqualTo: pencil.bottomAnchor, constant: 6).isActive = true
             updatePencil()
         }
     }
