@@ -158,16 +158,28 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         case ColumnID.created: archived.created.formatted(date: .abbreviated, time: .omitted)
         default: archived.ended.formatted(date: .abbreviated, time: .shortened)  // when it was finished or Discarded
         }
-        let cell = tableView.makeView(withIdentifier: id, owner: self) as? NSTextField ?? {
+        // A cell view with its text field centred in the row, as AppKit's own cells
+        // are; a bare text field draws its text at the top of the row.
+        let cell = tableView.makeView(withIdentifier: id, owner: self) as? NSTableCellView ?? {
+            let cell = NSTableCellView()
+            cell.identifier = id
             let field = NSTextField(labelWithString: "")
-            field.identifier = id
             field.lineBreakMode = .byTruncatingTail
-            return field
+            field.translatesAutoresizingMaskIntoConstraints = false
+            cell.addSubview(field)
+            cell.textField = field  // also gives it the selected row's text colours
+            NSLayoutConstraint.activate([
+                field.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+                field.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -2),
+                field.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            ])
+            return cell
         }()
-        cell.stringValue = text
-        cell.textColor = id == ColumnID.title ? .labelColor : .secondaryLabelColor
+        guard let field = cell.textField else { return cell }
+        field.stringValue = text
+        field.textColor = id == ColumnID.title ? .labelColor : .secondaryLabelColor
         if id == ColumnID.created || id == ColumnID.ended {
-            cell.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+            field.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
         return cell
     }
