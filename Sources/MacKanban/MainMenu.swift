@@ -51,6 +51,9 @@ enum MainMenu {
         window.addItem(.separator())
         window.addItem(withTitle: "Board", action: #selector(AppDelegate.showBoard), keyEquivalent: "0")
             .target = appDelegate
+        // ⌘⇧A: an uppercase key equivalent includes Shift.
+        window.addItem(withTitle: "Archive", action: #selector(AppDelegate.showArchive), keyEquivalent: "A")
+            .target = appDelegate
         main.addItem(submenu: window, title: "Window")
         NSApp.windowsMenu = window
 

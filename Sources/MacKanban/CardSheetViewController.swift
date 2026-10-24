@@ -11,6 +11,8 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
         case edit(Card)
         /// Done Cards stay as they were finished.
         case readOnly(Card)
+        /// From the Archive: read-only too.
+        case discarded(Card)
     }
 
     /// Called with the title and notes when the user adds or saves.
@@ -32,12 +34,15 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
     private var card: Card? {
         switch mode {
         case .new: nil
-        case let .edit(card), let .readOnly(card): card
+        case let .edit(card), let .readOnly(card), let .discarded(card): card
         }
     }
 
     private var isReadOnly: Bool {
-        if case .readOnly = mode { true } else { false }
+        switch mode {
+        case .readOnly, .discarded: true
+        case .new, .edit: false
+        }
     }
 
     override func loadView() {
@@ -45,6 +50,7 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
         case .new: "New Card"
         case .edit: "Edit Card"
         case .readOnly: "Done Card"
+        case .discarded: "Discarded Card"
         }
         let heading = NSTextField(labelWithString: headingText)
         heading.font = .preferredFont(forTextStyle: .headline)

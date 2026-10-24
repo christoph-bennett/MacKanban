@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController?
     private var board: BoardWindowController?
     private var settings: SettingsWindowController?
+    private var archive: ArchiveWindowController?
     private var terminationSignal: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -24,7 +25,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusItem.onOpenBoard = { [weak self] in self?.showBoard() }
             statusItem.onSettings = { [weak self] in self?.showSettings() }
             statusItem.onFinish = { [weak board] in board?.finish($0) }
-            board.onStateChange = { [weak statusItem] in statusItem?.show($0) }
+            let archive = ArchiveWindowController(board: model)
+            board.onStateChange = { [weak statusItem, weak archive] in
+                statusItem?.show($0)
+                archive?.reload()
+            }
+            self.archive = archive
             self.board = board
             self.settings = settings
             self.statusItem = statusItem
@@ -75,6 +81,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func newCard() {
         showBoard()
         board?.newCard(nil)
+    }
+
+    @objc func showArchive() {
+        archive?.showWindow(nil)
     }
 
     @objc func showSettings() {

@@ -191,6 +191,10 @@ public final class Board {
         return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
     }
 
+    /// How long a Card stays in Done before it leaves the Board for the Archive.
+    /// Never recorded: it follows from the Moved-to-Done event (ADR 0002).
+    public nonisolated static let archiveDelay: TimeInterval = 7 * 86_400
+
     /// How long after an operation it can still be undone. Undo is for slips
     /// straight after they happen, not for rewriting history (ADR 0002).
     public nonisolated static let undoWindow: TimeInterval = 15 * 60
@@ -310,6 +314,7 @@ public final class Board {
             // still count, and Discarded Cards never entered Done.
             if visits.contains(where: { $0.column == .done && $0.entered >= throughputSince }) { throughput += 1 }
             guard let column = Self.column(after: visits) else { return nil }  // Discarded
+            if Self.isArchived(visits, at: now) { return nil }
             let created = visits.first?.entered ?? now
             let timeInDoing = visits.timeSpent(in: .doing, until: now)
             // The age the Card's label shows, and the ascending sort key for its Column.
@@ -392,6 +397,25 @@ public final class Board {
         return gate
     }
 
+    /// Archived Done Cards and Discarded Cards, the most recently ended first.
+    public func archive() throws -> [ArchivedCard] {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
+        request.relationshipKeyPathsForPrefetching = ["events"]
+        let now = now()
+        return try context.fetch(request).compactMap { object -> ArchivedCard? in
+            let visits = Self.visits(of: object)
+            guard let created = visits.first?.entered, let last = visits.last,
+                  let card = Self.card(object, in: .done, age: nil)  // read-only, no Urgency
+            else { return nil }
+            if let discarded = last.left {
+                return ArchivedCard(card: card, created: created, ended: discarded, outcome: .discarded)
+            }
+            guard Self.isArchived(visits, at: now) else { return nil }
+            return ArchivedCard(card: card, created: created, ended: last.entered, outcome: .done)
+        }
+        .sorted { $0.ended > $1.ended }
+    }
+
     /// The whole event log, oldest first.
     public func events() throws -> [Event] {
         let request = NSFetchRequest<NSManagedObject>(entityName: "Event")
@@ -418,6 +442,13 @@ public final class Board {
         return events.sorted {
             ($0.value(forKey: "timestamp") as? Date ?? .distantPast) < ($1.value(forKey: "timestamp") as? Date ?? .distantPast)
         }
+    }
+
+    /// Whether the Card is a Done Card that has left the Board for the Archive:
+    /// `archiveDelay` after entering Done, never recorded (ADR 0002).
+    private static func isArchived(_ visits: [ColumnVisit], at now: Date) -> Bool {
+        guard let last = visits.last, last.column == .done, last.left == nil else { return false }
+        return now.timeIntervalSince(last.entered) >= archiveDelay
     }
 
     /// Where the Card is now, or `nil` once it's Discarded.

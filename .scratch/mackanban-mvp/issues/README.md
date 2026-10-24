@@ -13,5 +13,5 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 07 | [Undo](07-undo.md) | 03, 06 | done |
 | 08 | [Capacity and the Capacity gauge](08-capacity-gauge.md) | 05, 06 | done |
 | 09 | [Triage and the creation block](09-triage-and-creation-block.md) | 04, 08 | done |
-| 10 | [Archive](10-archive.md) | 03, 06 | ready-for-agent |
+| 10 | [Archive](10-archive.md) | 03, 06 | done |
 | 11 | [Menu bar extra](11-menu-bar-extra.md) | 09 | done |
