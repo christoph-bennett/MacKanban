@@ -503,7 +503,7 @@ private final class ColumnView: NSView {
         } else if isDropTarget {
             .controlAccentColor.withAlphaComponent(0.15)
         } else {
-            .quaternaryLabelColor.withAlphaComponent(0.08)
+            BoardColors.column
         }
         layer?.backgroundColor = background.cgColor
         layer?.borderColor = NSColor.systemRed.cgColor
@@ -752,6 +752,27 @@ private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }
 
+/// The Board's own colours, chosen by Christoph for light mode (2026-10-24), with
+/// dark values keeping the same steps: the Column a recessed step darker than
+/// the window, the Card border a soft line.
+enum BoardColors {
+    static let window = dynamic(light: 0xF1F6FC, dark: 0x262A2F)
+    static let column = dynamic(light: 0xE7ECF0, dark: 0x1A1D21)
+    /// Neutral Cards' border; aging Cards' borders shift from it toward their tint.
+    static let cardBorder = dynamic(light: 0xDFE1E3, dark: 0x3A3E43)
+
+    private static func dynamic(light: Int, dark: Int) -> NSColor {
+        NSColor(name: nil) { appearance in
+            rgb(appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light)
+        }
+    }
+
+    private static func rgb(_ hex: Int) -> NSColor {
+        NSColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+    }
+}
+
 /// A Card's colours for its Urgency, for the Board and the Triage sheet. Resolve
 /// them with the view's appearance current, so system colours mix for light or dark.
 enum UrgencyTint {
@@ -760,7 +781,7 @@ enum UrgencyTint {
     }
 
     static func border(for urgency: Double) -> NSColor {
-        mix(.separatorColor, tint(for: urgency), urgency)
+        mix(BoardColors.cardBorder, tint(for: urgency), urgency)
     }
 
     /// Amber, turning red over the second half of the Urgency range.

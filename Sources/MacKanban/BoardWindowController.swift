@@ -17,6 +17,7 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
         window.setContentSize(NSSize(width: 900, height: 600))
         window.minSize = NSSize(width: 600, height: 360)
         window.isReleasedWhenClosed = false
+        window.backgroundColor = BoardColors.window
         super.init(window: window)
 
         let toolbar = NSToolbar(identifier: "Board")
