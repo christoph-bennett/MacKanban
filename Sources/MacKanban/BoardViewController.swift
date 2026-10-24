@@ -534,7 +534,8 @@ private final class CardView: NSView, NSDraggingSource {
         didSet { updatePencil() }
     }
 
-    /// - Parameter showsAge: the age label; VoiceOver reads the age either way.
+    /// - Parameter showsAge: the age label; its line stays either way, and
+    ///   VoiceOver reads the age either way.
     init(card: Card, in column: Column, isSelected: Bool, showsAge: Bool) {
         self.card = card
         self.isSelected = isSelected
@@ -562,9 +563,15 @@ private final class CardView: NSView, NSDraggingSource {
             stack.addArrangedSubview(notes)
         }
         var ageLabel: NSTextField?
-        if let ageText, showsAge {
+        if let ageText {
             let age = NSTextField(labelWithString: ageText)
             ageLabel = age
+            // Hidden ages keep their line, so switching them off doesn't shrink Cards.
+            // Transparent rather than `isHidden`, which the stack would collapse.
+            if !showsAge {
+                age.alphaValue = 0
+                age.setAccessibilityElement(false)  // the Card's own label has the age
+            }
             age.font = .monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .medium)
             age.textColor = .secondaryLabelColor
             age.alignment = .right
