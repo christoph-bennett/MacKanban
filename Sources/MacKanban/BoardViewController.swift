@@ -615,6 +615,10 @@ private final class CardView: NSView, NSDraggingSource {
                 pencil.widthAnchor.constraint(equalToConstant: 22),
                 pencil.heightAnchor.constraint(equalToConstant: 22),
             ])
+            // A one-line title without notes would bring the age up to 4 pt under the
+            // pencil; keep 8 pt. Always, hidden pencil or not, so hovering doesn't
+            // change the Card's height.
+            ageLabel?.topAnchor.constraint(greaterThanOrEqualTo: pencil.bottomAnchor, constant: 8).isActive = true
             updatePencil()
         }
     }
