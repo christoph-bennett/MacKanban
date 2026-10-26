@@ -52,6 +52,10 @@ _Avoid_: Active card, pending card
 Removing an Open Card from the Board on purpose because the work won't be done. It is recorded, but it isn't a completion.
 _Avoid_: Delete, cancel, abandon
 
+**Sample Card**:
+A Card the app adds to show how the Board works, rather than one the user created. While on the Board it ages, counts and records Card Events like any other Card, and it can be moved or Discarded, but not edited. Removing Sample Cards takes them and their whole history off the Board, leaving no trace.
+_Avoid_: Demo card, example card, placeholder
+
 **Archive**:
 Where Done Cards go after a while. They are no longer shown on the Board but still count toward history.
 _Avoid_: Trash, history

@@ -15,3 +15,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 09 | [Triage and the creation block](09-triage-and-creation-block.md) | 04, 08 | done |
 | 10 | [Archive](10-archive.md) | 03, 06 | done |
 | 11 | [Menu bar extra](11-menu-bar-extra.md) | 09 | done |
+| 12 | [Sample Cards](12-sample-cards.md) | none | to do |
