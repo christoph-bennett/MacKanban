@@ -4,6 +4,8 @@ Ideas and requirements not yet built. New items go to **Inbox**. Once triaged th
 
 ## Inbox
 
+- **Sample data on first launch.** On first launch, offer to fill the Board with sample Cards (everyday chores, nothing techy); the offer may also stay in the menu bar extra's menu. Sample Cards can be removed later without touching Cards the user created, even ones added on top. To grill (`/grill-with-docs`) before ticketing. Open questions: how sample Cards are told apart without a schema change (ADR 0002), whether they age, cost Capacity and show up in Throughput and the event log like real Cards, what happens to a sample Card the user edited or moved, and whether removing them is a Discard or leaves no trace. Raised 2026-10-26.
+
 ## MVP
 
 Everything in [spec 0001](./docs/specs/0001-mvp.md).
