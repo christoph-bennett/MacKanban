@@ -841,8 +841,11 @@ enum UrgencyTint {
         mix(.controlBackgroundColor, tint(for: urgency), urgency * 0.45)
     }
 
+    /// Rises steeply at first and is the full tint colour from Urgency 0.25 on, so a
+    /// Card that has only just started aging shows it at the edge while its
+    /// background stays nearly neutral.
     static func border(for urgency: Double) -> NSColor {
-        mix(BoardColors.cardBorder, tint(for: urgency), urgency)
+        mix(BoardColors.cardBorder, tint(for: urgency), min(1, 2 * urgency.squareRoot()))
     }
 
     /// Amber, turning red over the second half of the Urgency range.
