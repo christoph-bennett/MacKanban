@@ -77,11 +77,11 @@ nonisolated(unsafe) var now = Date().addingTimeInterval(-40 * 86_400)
     try board.move(started, to: .doing)
     try advance(days: 2.5)
     let fresh = try card("Reply to Anna", "Before Friday")
-    try advance(days: 1)
+    try advance(days: 1.4)
     let justStarted = try card("Review the pull request")
-    try board.move(justStarted, to: .doing)  // neutral in Doing: under a day
+    try board.move(justStarted, to: .doing)  // neutral in Doing: under 4 hours
     _ = (report, tax, call, dentist, fresh)
-    // `now` is now about half a day ago; the app reads the real clock.
+    // `now` is now about 2.4 hours ago; the app reads the real clock.
     var ideas = 0
     while blocked, try board.capacity().free > 0 {
         ideas += 1

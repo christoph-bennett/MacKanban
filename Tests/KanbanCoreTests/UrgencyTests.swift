@@ -21,7 +21,7 @@ struct UrgencyTests {
         try #require(try board.cards(in: column).first { $0.id == id })
     }
 
-    @Test(arguments: [(0.0, 0.0), (3, 0), (12, 0.5), (21, 1), (30, 1)])
+    @Test(arguments: [(0.0, 0.0), (0.5, 0), (10.75, 0.5), (21, 1), (30, 1)])
     func backlogUrgencyRisesWithCardAge(days: Double, urgency: Double) throws {
         let id = try create("Old idea")
         clock.advance(days: days)
@@ -33,9 +33,18 @@ struct UrgencyTests {
         let id = try create("Finally")
         clock.advance(days: 29)
         try board.move(id, to: .doing)
-        clock.advance(days: 1)
+        clock.advance(days: 4.0 / 24)  // 4 hours
 
         #expect(try card(id, in: .doing).urgency == 0)
+    }
+
+    @Test(arguments: [(0.0, 0.0), (4.0 / 24, 0.0), (3 + 14.0 / 24, 0.5), (7.0, 1.0), (10.0, 1.0)] as [(Double, Double)])
+    func doingUrgencyRisesWithColumnAge(days: Double, urgency: Double) throws {
+        let id = try create("Started")
+        try board.move(id, to: .doing)
+        clock.advance(days: days)
+
+        #expect(abs(try card(id, in: .doing).urgency - urgency) < 0.000_001)
     }
 
     @Test func doingUrgencyCountsEveryVisit() throws {
@@ -45,7 +54,7 @@ struct UrgencyTests {
         try board.move(id, to: .backlog)
         clock.advance(days: 10)  // time back in Backlog doesn't count for Doing
         try board.move(id, to: .doing)
-        clock.advance(days: 1)  // 3 + 1 = 4 days in Doing
+        clock.advance(days: 14.0 / 24)  // 3 days + 14 hours in Doing
 
         #expect(abs(try card(id, in: .doing).urgency - 0.5) < 0.000_001)
     }

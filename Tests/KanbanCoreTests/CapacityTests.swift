@@ -45,14 +45,14 @@ struct CapacityTests {
     /// Spec 0001's example: Urgencies 1, 0.5 and 0.4 with Throughput 2.
     @Test func agingCardsTakeCapacityAwayInProportionToTheirUrgency() throws {
         _ = try create("21 days old")  // Urgency 1
-        clock.advance(days: 9)
-        _ = try create("12 days old")  // Urgency 0.5
-        clock.advance(days: 1.8)
-        _ = try create("10.2 days old")  // Urgency 0.4
+        clock.advance(days: 10.25)
+        _ = try create("10.75 days old")  // Urgency 0.5
+        clock.advance(days: 2.05)
+        _ = try create("8.7 days old")  // Urgency 0.4
         clock.advance(days: 0.2)
         try finish("Done A")
         try finish("Done B")
-        clock.advance(days: 10)
+        clock.advance(days: 8.5)
 
         let capacity = try board.capacity()
         #expect(capacity.throughput == 2)

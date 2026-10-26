@@ -6,8 +6,8 @@ import Foundation
 enum Urgency {
     /// Backlog Cards by Card Age, Doing Cards by Column Age.
     private static let ramps: [Column: (neutralUntil: TimeInterval, fullAt: TimeInterval)] = [
-        .backlog: (days(3), days(21)),
-        .doing: (days(1), days(7)),
+        .backlog: (hours(12), days(21)),
+        .doing: (hours(4), days(7)),
     ]
 
     /// Done Cards have none.
@@ -17,4 +17,5 @@ enum Urgency {
     }
 
     private static func days(_ count: Double) -> TimeInterval { count * 86_400 }
+    private static func hours(_ count: Double) -> TimeInterval { count * 3_600 }
 }

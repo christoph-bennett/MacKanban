@@ -146,7 +146,7 @@ struct TriageTests {
         _ = try create("Waiting")
         let started = try create("Started")
         try board.move(started, to: .doing)
-        clock.advance(days: 4)  // Backlog Urgency 1/18, Doing Urgency 0.5: Capacity 4, 2 free
+        clock.advance(days: 4)  // Backlog Urgency 0.17, Doing Urgency 0.56: Capacity 4, 2 free
 
         #expect(try board.creationGate() == .triage(try #require(try board.cards(in: .doing).first)))
     }
