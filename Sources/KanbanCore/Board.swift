@@ -41,6 +41,8 @@ public enum BoardError: LocalizedError, Equatable {
     case wipLimitReached(limit: Int)
     case wipLimitOutOfRange
     case cardIsDone
+    case sampleCardIsReadOnly
+    case sampleCardsNeedEmptyBoard
     case cannotUndo
     case cardExists
     case creationBlocked(capacity: Int, openCards: Int, cardsToFree: Int)
@@ -55,6 +57,8 @@ public enum BoardError: LocalizedError, Equatable {
         case let .moveNotAllowed(from, to): "Cards can't move from \(from.title) to \(to.title)."
         case let .wipLimitReached(limit): "Doing is at its WIP Limit of \(limit). Finish a Card before starting another."
         case .cardIsDone: "Done Cards stay as they were finished."
+        case .sampleCardIsReadOnly: "Sample Cards can't be edited. Create your own Card instead."
+        case .sampleCardsNeedEmptyBoard: "Sample Cards can only be added while the Board has no Open Cards and no Sample Cards."
         case .cardExists: "A Card with this ID already exists."
         case let .creationBlocked(capacity, openCards, cardsToFree):
             "Capacity \(capacity), Open Cards \(openCards): finish or Discard \(cardsToFree) "
@@ -104,13 +108,17 @@ public final class Board {
         }
         guard try context.count(for: Self.cardRequest(id)) == 0 else { throw BoardError.cardExists }
         let event = try change {
-            let card = NSManagedObject(entity: StoreModel.shared.entitiesByName["Card"]!, insertInto: context)
-            card.setValue(id, forKey: "id")
-            card.setValue(title, forKey: "title")
-            card.setValue(notes.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "notes")
-            return try record(.created, for: card)
+            try record(.created, for: insertCard(id: id, title: title, notes: notes.trimmingCharacters(in: .whitespacesAndNewlines)))
         }
         return Change(cardID: id, isCreation: true, event: event.objectID.uriRepresentation())
+    }
+
+    private func insertCard(id: UUID, title: String, notes: String) -> NSManagedObject {
+        let card = NSManagedObject(entity: StoreModel.shared.entitiesByName["Card"]!, insertInto: context)
+        card.setValue(id, forKey: "id")
+        card.setValue(title, forKey: "title")
+        card.setValue(notes, forKey: "notes")
+        return card
     }
 
     @discardableResult
@@ -123,7 +131,12 @@ public final class Board {
 
     @discardableResult
     private func recordMove(of card: NSManagedObject, from: Column, to column: Column) throws -> NSManagedObject {
-        let event = try record(.moved, for: card)
+        recordMove(of: card, from: from, to: column, at: try nextTimestamp())
+    }
+
+    @discardableResult
+    private func recordMove(of card: NSManagedObject, from: Column, to column: Column, at timestamp: Date) -> NSManagedObject {
+        let event = record(.moved, for: card, at: timestamp)
         event.setValue(from.rawValue, forKey: "fromColumn")
         event.setValue(column.rawValue, forKey: "toColumn")
         return event
@@ -170,6 +183,7 @@ public final class Board {
     public func edit(_ id: UUID, title: String, notes: String) throws {
         let (card, column) = try cardOnBoard(id)
         guard column != .done else { throw BoardError.cardIsDone }
+        guard !SampleCards.isSample(id) else { throw BoardError.sampleCardIsReadOnly }
         let (title, notes) = (title.trimmingCharacters(in: .whitespacesAndNewlines),
                               notes.trimmingCharacters(in: .whitespacesAndNewlines))
         guard !title.isEmpty else { throw BoardError.emptyTitle }
@@ -228,12 +242,78 @@ public final class Board {
         }
     }
 
+    /// Adds the Sample Cards with their histories written into the past, so they
+    /// have their ages the moment they appear (ADR 0005). Only while the Board has
+    /// no Open Cards and no Sample Cards, so their Capacity is known: a Doing chore
+    /// that would go over the WIP Limit stays in Backlog.
+    public func addSampleCards() throws {
+        guard try canAddSampleCards() else { throw BoardError.sampleCardsNeedEmptyBoard }
+        let now = now()
+        func ago(_ days: Double) -> Date { now.addingTimeInterval(-days * 86_400) }
+        var doing = 0
+        try change {
+            for chore in SampleCards.chores {
+                let card = insertCard(id: chore.id, title: chore.title, notes: chore.notes)
+                record(.created, for: card, at: ago(chore.created))
+                guard let started = chore.started else {
+                    if let discarded = chore.discarded { record(.discarded, for: card, at: ago(discarded)) }
+                    continue
+                }
+                if chore.finished == nil {
+                    guard doing < wipLimit else { continue }
+                    doing += 1
+                }
+                recordMove(of: card, from: .backlog, to: .doing, at: ago(started))
+                if let finished = chore.finished { recordMove(of: card, from: .doing, to: .done, at: ago(finished)) }
+            }
+        }
+    }
+
+    /// Takes every Sample Card off the Board, Archive included, together with its
+    /// Card Events, leaving no trace (ADR 0005). Board Events stay. Returns how
+    /// many were removed.
+    @discardableResult
+    public func removeSampleCards() throws -> Int {
+        let samples = try sampleCards()
+        try change {
+            for card in samples { context.delete(card) }  // a Card's events go with it
+        }
+        return samples.count
+    }
+
+    /// Sample Cards anywhere: on the Board, in the Archive or Discarded.
+    public func sampleCardCount() throws -> Int {
+        try sampleCards().count
+    }
+
+    /// Whether `addSampleCards()` is allowed: no Open Cards and no Sample Cards.
+    public func canAddSampleCards() throws -> Bool {
+        try sampleCardCount() == 0 && state().capacity.openCards == 0
+    }
+
+    /// Whether any Card was ever created and is still stored, wherever it is now:
+    /// the first-launch offer of Sample Cards is only for a Board without any.
+    public func hasCards() throws -> Bool {
+        try context.count(for: NSFetchRequest<NSManagedObject>(entityName: "Card")) > 0
+    }
+
+    private func sampleCards() throws -> [NSManagedObject] {
+        try context.fetch(NSFetchRequest<NSManagedObject>(entityName: "Card")).filter {
+            ($0.value(forKey: "id") as? UUID).map(SampleCards.isSample) ?? false
+        }
+    }
+
     /// Forward through Doing, or from Doing back to Backlog. Nothing leaves Done.
     private static let allowedMoves: Set<[Column]> = [[.backlog, .doing], [.doing, .done], [.doing, .backlog]]
 
     @discardableResult
     private func record(_ kind: Event.Kind, for card: NSManagedObject?) throws -> NSManagedObject {
-        let timestamp = try nextTimestamp()
+        record(kind, for: card, at: try nextTimestamp())
+    }
+
+    /// Only Sample Cards are written at a given time, into the past (ADR 0005).
+    @discardableResult
+    private func record(_ kind: Event.Kind, for card: NSManagedObject?, at timestamp: Date) -> NSManagedObject {
         let event = NSManagedObject(entity: StoreModel.shared.entitiesByName["Event"]!, insertInto: context)
         event.setValue(kind.rawValue, forKey: "kind")
         event.setValue(timestamp, forKey: "timestamp")

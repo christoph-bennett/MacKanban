@@ -55,6 +55,18 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
         boardView.finish(id)
     }
 
+    func offerSampleCards() -> Bool {
+        boardView.offerSampleCards()
+    }
+
+    func addSampleCards() {
+        boardView.addSampleCards()
+    }
+
+    func removeSampleCards() {
+        boardView.removeSampleCards()
+    }
+
     // MARK: NSToolbarDelegate
 
     private static let newCardItem = NSToolbarItem.Identifier("newCard")

@@ -11,13 +11,23 @@
 
 **Blocked by:** none
 
-**Status:** to do
+**Status:** done
 
-- [ ] Adding is refused with an Open Card or a Sample Card on the Board, and works otherwise (including with the user's own Done or Archived Cards)
-- [ ] Right after adding: every stage from neutral to fully red is on the Board, Doing is within the WIP Limit, at least 1 slot is free, and the Archive has a Discarded and a finished Sample Card
-- [ ] Removing deletes every Sample Card and its events, keeps the user's Cards (also ones created after the samples) and all Board Events
-- [ ] Editing a Sample Card is refused; moving and Discarding it work and record events
-- [ ] The first-launch alert appears once, only with the flag unset and an empty Board
-- [ ] The menu bar entry switches between Add and Remove as above, and Remove asks first
-- [ ] Sample Cards show "Sample" in the age line and have no pencil
-- [ ] ⌘Z never refers to a removed Sample Card
+- [x] Adding is refused with an Open Card or a Sample Card on the Board, and works otherwise (including with the user's own Done or Archived Cards)
+- [x] Right after adding: every stage from neutral to fully red is on the Board, Doing is within the WIP Limit, at least 1 slot is free, and the Archive has a Discarded and a finished Sample Card
+- [x] Removing deletes every Sample Card and its events, keeps the user's Cards (also ones created after the samples) and all Board Events
+- [x] Editing a Sample Card is refused; moving and Discarding it work and record events
+- [x] The first-launch alert appears once, only with the flag unset and an empty Board
+- [x] The menu bar entry switches between Add and Remove as above, and Remove asks first
+- [x] Sample Cards show "Sample" in the age line and have no pencil
+- [x] ⌘Z never refers to a removed Sample Card
+
+**Notes from implementing:**
+- Board: `addSampleCards()`, `removeSampleCards()` (returns the count), `sampleCardCount()`, `canAddSampleCards()` and `hasCards()`; `edit` throws `sampleCardIsReadOnly`, adding on a Board with Open Cards or Sample Cards throws `sampleCardsNeedEmptyBoard`. The chores live in `SampleCards.swift` with fixed IDs under the prefix `5A3B1E00-CA4D-4000-8000-`; `Card.isSample` checks it. Backdated events go through new `record(_:for:at:)`/`recordMove(of:from:to:at:)` overloads that skip the "1 ms after the latest event" stamping, so the sample histories sit in the past (ADR 0005).
+- The mix (13 chores): Backlog 1 h, 6 d, 13 d (notes), 25 d (fully red, notes); Doing 2 h and 4 d; Done 8 h, 1 d, 2 d, 3.5 d, 5 d; Archive: one finished 9 days ago (still counts as Throughput) and one Discarded. Right after adding: Throughput 6, aging about 2.4, Capacity 8, 6 Open Cards, so 2 free slots; the red Card sends the next new Card through Triage. With a WIP Limit of 1 the second Doing chore stays in Backlog.
+- Tests at the Board seam (`SampleCardsTests`, 9): stages of aging and room to create, refusals (Open Card, samples already there, even if all Discarded), adding next to my own Done Cards, removal leaving no trace while keeping my Card created on top and the Board Events, a low WIP Limit, move and Discard but no edit, my Cards not being samples, `hasCards`.
+- App: the first-launch alert is a sheet on the Board window (`offerSampleCards`), guarded in `AppDelegate` by the `sampleCardsOffered` flag (set at once, whatever the answer) and in the view controller by `hasCards()`. The menu bar entry sits in its own section above New Card…: "Add Sample Cards" or "Remove Sample Cards…"; both bring the Board window forward and act there (Remove asks in a sheet). Both are refused with a beep while a sheet is up, since a Triage sheet may be about a Sample Card.
+- Sample Cards: no pencil, double-click and Return do nothing, Edit Card… is disabled, the context menu offers only Discard (nothing on a Done Sample Card). The age line reads "Sample · 6d old" and stays "Sample" when ages are hidden; VoiceOver reads "sample" too.
+- Undo: adding and removing both clear the window's whole undo stack (`removeAllActions`). The ticket said removing clears only the entries about Sample Cards, but the registered closures don't say which Card they're about; and an undo from before adding could reopen the user's own Card next to the samples and spoil their Capacity (found in review). ADR 0005 updated.
+- Review (medium) fixes: choosing "Add Sample Cards" in the first-launch alert did nothing (the alert is still attached when its handler runs, and the "no sheet up" guard refused); the offered flag is now set only once the alert is shown or the Board turns out to have Cards, so a launch where it couldn't be shown doesn't use it up; the offer also checks for an attached alert; `createCard` and `addSampleCards` share `insertCard`; with ages hidden the "Sample" line is no second VoiceOver element. Skipped: the menu fetching all Cards on each open to count Sample Cards (trivial at this size, spec: heavy logic stays out of views but this is one fetch); the backdated events sorting before earlier Board Events (accepted, noted in ADR 0005).
+- Checked by screenshot on sample stores: the first-launch alert, the Board with Sample Cards in light and dark mode, the menu with "Remove Sample Cards…" and on an empty Board with "Add Sample Cards". Not checked by screenshot (needs clicking): Add/Remove from the menu, the Remove confirmation, Discarding a Sample Card, ⌘Z after Remove.

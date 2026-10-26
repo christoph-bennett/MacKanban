@@ -18,6 +18,6 @@ Sample Cards can be moved and Discarded, but not edited, so their titles and not
 
 ## Consequences
 
-- The Board stamps every new event at least 1 ms after the latest one (ADR 0002). Backdated sample events sit before the user's own recent events. That's harmless, because Column Visits are replayed per Card and each Sample Card's own events have distinct timestamps.
-- Removing Sample Cards also clears every undo entry that refers to one. Adding them can't be undone with ⌘Z. "Remove Sample Cards" is the way back.
+- The Board stamps every new event at least 1 ms after the latest one (ADR 0002). Backdated sample events sit before the user's own recent events and Board Events in the log. That's harmless for the rules, because Column Visits are replayed per Card and each Sample Card's own events have distinct timestamps. While Sample Cards are on the Board, a Dashboard reading the log in time order would see their backdated history ahead of Board Events that actually happened before it.
+- Adding Sample Cards can't be undone with ⌘Z; "Remove Sample Cards" is the way back. Adding and removing both clear the whole undo stack. Undo entries don't record which Card they're about, and an older undo could otherwise reopen a Card next to the samples (spoiling their Capacity) or refer to a removed one.
 - Whether the first-launch offer was shown is a UserDefaults flag (a display setting). It is offered only while the flag is unset and the Board has no Cards, so an existing Board never gets it.

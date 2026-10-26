@@ -10,6 +10,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onSettings: (() -> Void)?
     /// Moves the chosen Doing Card to Done.
     var onFinish: ((UUID) -> Void)?
+    var onAddSampleCards: (() -> Void)?
+    var onRemoveSampleCards: (() -> Void)?
 
     private let board: Board
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -100,7 +102,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             cardItem.toolTip = card.ageLabel(in: .doing).map { "\($0). Choose to move it to Done." }
             menu.addItem(cardItem)
         }
+        addSampleCardsItem(to: menu)
         addActions(to: menu)
+    }
+
+    /// "Remove Sample Cards" while any exist, Archive included; "Add Sample Cards"
+    /// while the Board has no Open Cards and no Sample Cards; otherwise nothing (ADR 0005).
+    private func addSampleCardsItem(to menu: NSMenu) {
+        if (try? board.sampleCardCount()) ?? 0 > 0 {
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Remove Sample Cards…", action: #selector(removeSampleCards(_:)), keyEquivalent: "").target = self
+        } else if (try? board.canAddSampleCards()) == true {
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Add Sample Cards", action: #selector(addSampleCards(_:)), keyEquivalent: "").target = self
+        }
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -125,6 +140,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func newCard(_ sender: Any?) { onNewCard?() }
     @objc private func openBoard(_ sender: Any?) { onOpenBoard?() }
     @objc private func settings(_ sender: Any?) { onSettings?() }
+    @objc private func addSampleCards(_ sender: Any?) { onAddSampleCards?() }
+    @objc private func removeSampleCards(_ sender: Any?) { onRemoveSampleCards?() }
 
     // MARK: Text
 

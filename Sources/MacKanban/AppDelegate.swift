@@ -28,6 +28,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusItem.onOpenBoard = { [weak self] in self?.showBoard() }
             statusItem.onSettings = { [weak self] in self?.showSettings() }
             statusItem.onFinish = { [weak board] in board?.finish($0) }
+            statusItem.onAddSampleCards = { [weak self] in
+                self?.showBoard()
+                self?.board?.addSampleCards()
+            }
+            statusItem.onRemoveSampleCards = { [weak self] in
+                self?.showBoard()
+                self?.board?.removeSampleCards()
+            }
             let archive = ArchiveWindowController(board: model)
             board.onStateChange = { [weak statusItem, weak archive] in
                 statusItem?.show($0)
@@ -50,6 +58,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         quitNormallyOnTerminationSignal()
         showBoard()
         NSApp.activate()
+        offerSampleCardsOnFirstLaunch(defaults: defaults)
+    }
+
+    static let sampleCardsOfferedKey = "sampleCardsOffered"
+
+    /// Once, and only to a Board that never had a Card (ADR 0005). The flag is set
+    /// once the offer is shown, whatever the answer, or once the Board turns out to
+    /// have Cards, so emptying the Board later never brings the offer back.
+    private func offerSampleCardsOnFirstLaunch(defaults: UserDefaults) {
+        guard !defaults.bool(forKey: Self.sampleCardsOfferedKey), board?.offerSampleCards() == true else { return }
+        defaults.set(true, forKey: Self.sampleCardsOfferedKey)
     }
 
     /// The menu bar extra keeps MacKanban useful without its window.

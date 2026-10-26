@@ -133,9 +133,11 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     }
 
     /// Opens the Card's sheet: editable in Backlog and Doing, read-only in Done.
+    /// Sample Cards don't open: they can't be edited, and the Card shows all they hold.
     private func open(_ id: UUID) {
         guard let (card, column) = cardOnScreen(id) else { return }
         select(id)
+        guard !card.isSample else { return }
         if column == .done {
             presentCardSheet(.readOnly(card))
         } else {
@@ -187,6 +189,89 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         } catch {
             show(error)
         }
+    }
+
+    // MARK: Sample Cards
+
+    /// The first-launch offer of Sample Cards (ADR 0005), as a sheet on the window;
+    /// only to a Board that never had a Card. Returns whether the offer is settled:
+    /// shown now, or never due because the Board has Cards. `false` (no window, a
+    /// sheet up, a store error) leaves it for the next launch.
+    func offerSampleCards() -> Bool {
+        guard let window = view.window, !isShowingSheet, window.attachedSheet == nil,
+              let hasCards = try? board.hasCards()
+        else { return false }
+        guard !hasCards else { return true }
+        let alert = NSAlert()
+        alert.messageText = "Try MacKanban with sample Cards?"
+        alert.informativeText = "A few everyday chores of different ages show how Cards age and how the Board "
+            + "limits new work. You can remove them anytime from the menu bar menu; your own Cards stay."
+        alert.addButton(withTitle: "Add Sample Cards")
+        alert.addButton(withTitle: "Start Empty")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            // The alert is still attached while this runs, so not `addSampleCards()`,
+            // which refuses while a sheet is up.
+            guard response == .alertFirstButtonReturn else { return }
+            self?.insertSampleCards()
+        }
+        return true
+    }
+
+    func addSampleCards() {
+        guard isFreeForSampleCards() else { return }
+        insertSampleCards()
+    }
+
+    /// Adding can't be undone with ⌘Z: removing them is the way back. It clears the
+    /// undo stack, so an undo from before can't reopen a Card next to them and
+    /// spoil the Capacity they were chosen for.
+    private func insertSampleCards() {
+        do {
+            try board.addSampleCards()
+            view.window?.undoManager?.removeAllActions()
+            reload()
+        } catch {
+            show(error)
+        }
+    }
+
+    /// Asks first, since removing can't be undone. Clears the whole undo stack, which
+    /// could otherwise try to restore an event of a Card that no longer exists: its
+    /// entries don't say which Card they're about.
+    func removeSampleCards() {
+        guard isFreeForSampleCards(), let window = view.window else { return }
+        let count: Int
+        do {
+            count = try board.sampleCardCount()
+        } catch {
+            return show(error)
+        }
+        guard count > 0 else { return }
+        let alert = NSAlert()
+        alert.messageText = "Remove \(count) sample Cards?"
+        alert.informativeText = "Your own Cards stay. This can't be undone."
+        alert.addButton(withTitle: "Remove Sample Cards")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
+            do {
+                try board.removeSampleCards()
+                view.window?.undoManager?.removeAllActions()
+                reload()
+            } catch {
+                show(error)
+            }
+        }
+    }
+
+    /// Refused while a sheet is up, which may be about a Sample Card (Triage):
+    /// the window comes forward to show it.
+    private func isFreeForSampleCards() -> Bool {
+        guard isShowingSheet || view.window?.attachedSheet != nil else { return true }
+        view.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+        NSSound.beep()
+        return false
     }
 
     private func cardOnScreen(_ id: UUID) -> (Card, Column)? {
@@ -263,6 +348,10 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         undoManager.setActionName(actionName)
     }
 
+    private var selectedIsSample: Bool {
+        selectedCard.flatMap(cardOnScreen)?.0.isSample ?? false
+    }
+
     /// The Column the selected Card is in, if a Card is selected.
     private var selectedColumn: Column? {
         columnViews.first { $0.contains(selectedCard) }?.column
@@ -309,7 +398,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         return switch menuItem.action {
         case #selector(moveToNextColumn(_:)): column(by: 1) != nil
         case #selector(moveToPreviousColumn(_:)): column(by: -1) != nil
-        case #selector(editCard(_:)): selectedColumn != nil
+        case #selector(editCard(_:)): selectedColumn != nil && !selectedIsSample
         case #selector(discardCard(_:)): selectedColumn == .backlog || selectedColumn == .doing
         default: true
         }
@@ -528,7 +617,9 @@ private final class CardView: NSView, NSDraggingSource {
             setAccessibilitySelected(isSelected)
         }
     }
+    /// An Open Card: it can be Discarded, and edited unless it's a Sample Card.
     private let isEditable: Bool
+    private var hasPencil: Bool { isEditable && !card.isSample }
     /// Opens the edit sheet. Shown only while the pointer is over the Card.
     private let pencil = PencilButton()
     private var isHovered = false {
@@ -539,7 +630,8 @@ private final class CardView: NSView, NSDraggingSource {
     }
 
     /// - Parameter showsAge: the age label; its line stays either way, and
-    ///   VoiceOver reads the age either way.
+    ///   VoiceOver reads the age either way. A Sample Card's line always shows
+    ///   "Sample", with its age after it when ages are shown.
     init(card: Card, in column: Column, isSelected: Bool, showsAge: Bool) {
         self.card = card
         self.isSelected = isSelected
@@ -550,7 +642,8 @@ private final class CardView: NSView, NSDraggingSource {
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         let ageText = card.ageLabel(in: column)
-        setAccessibilityLabel(ageText.map { "\(card.title), \($0)" } ?? card.title)
+        let spokenAge = [card.isSample ? "sample" : nil, ageText].compactMap { $0 }.joined(separator: ", ")
+        setAccessibilityLabel(spokenAge.isEmpty ? card.title : "\(card.title), \(spokenAge)")
         setAccessibilitySelected(isSelected)
 
         let title = NSTextField(wrappingLabelWithString: card.title)
@@ -567,14 +660,15 @@ private final class CardView: NSView, NSDraggingSource {
             stack.addArrangedSubview(notes)
         }
         var ageLabel: NSTextField?
-        if let ageText {
-            let age = NSTextField(labelWithString: ageText)
+        let lineText = card.isSample ? (showsAge ? ["Sample", ageText] : ["Sample"]).compactMap { $0 }.joined(separator: " · ") : ageText
+        if let lineText {
+            let age = NSTextField(labelWithString: lineText)
             ageLabel = age
             // Hidden ages keep their line, so switching them off doesn't shrink Cards.
             // Transparent rather than `isHidden`, which the stack would collapse.
             if !showsAge {
-                age.alphaValue = 0
-                age.setAccessibilityElement(false)  // the Card's own label has the age
+                if !card.isSample { age.alphaValue = 0 }  // "Sample" always shows
+                age.setAccessibilityElement(false)  // the Card's own label has it
             }
             age.font = .monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .medium)
             age.textColor = .secondaryLabelColor
@@ -594,14 +688,14 @@ private final class CardView: NSView, NSDraggingSource {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
-        // On editable Cards the title and notes keep room for the pencil at the top
+        // On Cards with a pencil the title and notes keep room for it at the top
         // right; the age label sits below it and runs to the edge.
         for label in stack.arrangedSubviews {
-            let pencilRoom: CGFloat = isEditable && label !== ageLabel ? 25 : 0  // to 6 pt left of the chip
+            let pencilRoom: CGFloat = hasPencil && label !== ageLabel ? 25 : 0  // to 6 pt left of the chip
             label.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20 - pencilRoom).isActive = true
         }
 
-        if isEditable {
+        if hasPencil {
             pencil.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit")?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .medium))
             pencil.toolTip = "Edit (Return)"
@@ -686,12 +780,14 @@ private final class CardView: NSView, NSDraggingSource {
     override func menu(for event: NSEvent) -> NSMenu? {
         onSelect?()
         let menu = NSMenu()
-        menu.addItem(withTitle: isEditable ? "Edit…" : "Open…", action: #selector(openFromPencil(_:)), keyEquivalent: "").target = self
+        if !card.isSample {
+            menu.addItem(withTitle: isEditable ? "Edit…" : "Open…", action: #selector(openFromPencil(_:)), keyEquivalent: "").target = self
+        }
         if isEditable {
-            menu.addItem(.separator())
+            if !card.isSample { menu.addItem(.separator()) }
             menu.addItem(withTitle: "Discard", action: #selector(discardFromMenu(_:)), keyEquivalent: "").target = self
         }
-        return menu
+        return menu.items.isEmpty ? nil : menu  // a Done Sample Card offers nothing
     }
 
     @objc private func discardFromMenu(_ sender: Any?) {
