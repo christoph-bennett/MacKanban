@@ -403,7 +403,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     /// ⌘⌫ or ⌘→ typed in the edit sheet must not Discard or move the Card being edited.
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(editCard(_:)) {
-            menuItem.title = selectedColumn == .done ? "Open Card…" : "Edit Card…"
+            menuItem.title = selectedColumn == .done ? "Open Card" : "Edit Card…"  // a Done Card only shows, so no "…"
         }
         if isShowingSheet,
            [#selector(moveToNextColumn(_:)), #selector(moveToPreviousColumn(_:)), #selector(editCard(_:)),
@@ -801,7 +801,7 @@ private final class CardView: NSView, NSDraggingSource {
         onSelect?()
         let menu = NSMenu()
         if !card.isSample {
-            menu.addItem(withTitle: isEditable ? "Edit…" : "Open…", action: #selector(openFromPencil(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: isEditable ? "Edit…" : "Open", action: #selector(openFromPencil(_:)), keyEquivalent: "").target = self
         }
         for target in Board.moveTargets(from: column) {
             let item = menu.addItem(withTitle: "Move to \(target.title)", action: #selector(moveFromMenu(_:)), keyEquivalent: "")
