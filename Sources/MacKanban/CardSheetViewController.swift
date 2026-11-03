@@ -152,8 +152,18 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
 }
 
 /// The notes field: Return starts a new line here instead of pressing the
-/// sheet's default button, which would save and close mid-sentence.
+/// sheet's default button, which would save and close mid-sentence. Tab and
+/// Shift-Tab move to the next and previous field, as in any Mac dialog;
+/// ⌥Tab still types a tab.
 private final class NotesTextView: NSTextView {
+    override func insertTab(_ sender: Any?) {
+        window?.selectNextKeyView(sender)
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        window?.selectPreviousKeyView(sender)
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let isPlainReturn = (event.keyCode == 36 || event.keyCode == 76)
             && event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty
