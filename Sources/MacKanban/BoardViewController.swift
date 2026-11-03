@@ -4,7 +4,7 @@ import KanbanCore
 /// The three Columns side by side, each listing its Cards. A clicked Card is
 /// selected; ⌘→ and ⌘← (the Card menu) or dragging move it between Columns.
 /// Its pencil, a double-click or Return opens it; ⌘⌫ or its context menu Discards it.
-/// Esc deselects it, and a second Esc closes the window.
+/// Esc closes the window; the selection is still there when it comes back.
 @MainActor
 final class BoardViewController: NSViewController, NSMenuItemValidation {
     private let board: Board
@@ -291,11 +291,10 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         }
     }
 
-    /// Esc clears the selection; with nothing selected it closes the Board window,
-    /// and if no other MacKanban window is left, hides MacKanban so the app the user
-    /// came from is in front again. A sheet or a drag takes Esc before this does.
+    /// Esc closes the Board window, a selected Card or not, and if no other MacKanban
+    /// window is left, hides MacKanban so the app the user came from is in front again.
+    /// A sheet or a drag takes Esc before this does.
     override func cancelOperation(_ sender: Any?) {
-        if selectedCard != nil { return select(nil) }
         guard let window = view.window else { return }
         window.performClose(sender)
         guard !window.isVisible else { return }
@@ -316,8 +315,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
 
     /// Only redraws the selection: rebuilding the Card views would replace the
     /// one being clicked, and a drag starting from it would have no window.
-    /// `nil` clears the selection.
-    private func select(_ card: UUID?) {
+    private func select(_ card: UUID) {
         selectedCard = card
         view.window?.makeFirstResponder(view)  // so the Card menu's shortcuts reach this controller
         for view in columnViews { view.select(card) }
@@ -554,8 +552,7 @@ private final class ColumnView: NSView {
         cards.arrangedSubviews.lazy.compactMap { ($0 as? CardView)?.card }.first { $0.id == id }
     }
 
-    /// `nil` clears the selection.
-    func select(_ card: UUID?) {
+    func select(_ card: UUID) {
         for case let view as CardView in cards.arrangedSubviews {
             view.isSelected = view.card.id == card
         }
