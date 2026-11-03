@@ -59,6 +59,21 @@ struct MoveTests {
         #expect(try board.events() == eventsBefore)
     }
 
+    /// What a Card's context menu offers: forward first, then back.
+    @Test(arguments: [
+        (Column.backlog, [Column.doing]),
+        (.doing, [.done, .backlog]),
+        (.done, []),
+    ])
+    func eachColumnOffersTheMovesTheBoardAllows(from: Column, targets: [Column]) throws {
+        #expect(Board.moveTargets(from: from) == targets)
+        for target in targets {
+            let card = try card(in: from)
+            try board.move(card, to: target)
+            #expect(try board.cards(in: target).map(\.id).contains(card))
+        }
+    }
+
     @Test func aCardCanGoBackFromDoingToBacklog() throws {
         let card = try card(in: .doing)
 

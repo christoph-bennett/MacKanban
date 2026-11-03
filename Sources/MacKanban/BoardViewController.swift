@@ -531,6 +531,7 @@ private final class ColumnView: NSView {
             view.onSelect = { [weak self] in self?.onSelect?(card.id) }
             view.onOpen = { [weak self] in self?.onOpen?(card.id) }
             view.onDiscard = { [weak self] in self?.onDiscard?(card.id) }
+            view.onMove = { [weak self] column in self?.onDrop?(card.id, column) }  // same move as a drop
             self.cards.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: self.cards.widthAnchor, constant: -24).isActive = true
         }
@@ -625,7 +626,10 @@ private final class CardView: NSView, NSDraggingSource {
     var onOpen: (() -> Void)?
     /// Offered only while the Card is editable: Done Cards can't be Discarded.
     var onDiscard: (() -> Void)?
+    /// Moves the Card to the Column the context menu chose.
+    var onMove: ((Column) -> Void)?
     let card: Card
+    private let column: Column
     var isSelected: Bool {
         didSet {
             needsDisplay = true
@@ -649,6 +653,7 @@ private final class CardView: NSView, NSDraggingSource {
     ///   "Sample", with its age after it when ages are shown.
     init(card: Card, in column: Column, isSelected: Bool, showsAge: Bool) {
         self.card = card
+        self.column = column
         self.isSelected = isSelected
         isEditable = column != .done
         super.init(frame: .zero)
@@ -798,8 +803,12 @@ private final class CardView: NSView, NSDraggingSource {
         if !card.isSample {
             menu.addItem(withTitle: isEditable ? "Edit…" : "Open…", action: #selector(openFromPencil(_:)), keyEquivalent: "").target = self
         }
+        for target in Board.moveTargets(from: column) {
+            let item = menu.addItem(withTitle: "Move to \(target.title)", action: #selector(moveFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = target
+        }
         if isEditable {
-            if !card.isSample { menu.addItem(.separator()) }
             menu.addItem(withTitle: "Discard", action: #selector(discardFromMenu(_:)), keyEquivalent: "").target = self
         }
         return menu.items.isEmpty ? nil : menu  // a Done Sample Card offers nothing
@@ -807,6 +816,11 @@ private final class CardView: NSView, NSDraggingSource {
 
     @objc private func discardFromMenu(_ sender: Any?) {
         onDiscard?()
+    }
+
+    @objc private func moveFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? Column else { return }
+        onMove?(target)
     }
 
     @available(*, unavailable)

@@ -306,6 +306,13 @@ public final class Board {
     /// Forward through Doing, or from Doing back to Backlog. Nothing leaves Done.
     private static let allowedMoves: Set<[Column]> = [[.backlog, .doing], [.doing, .done], [.doing, .backlog]]
 
+    /// The Columns a Card in `column` may move to, forward first: what a Card's
+    /// context menu offers. Whether a move goes through still depends on the
+    /// WIP Limit, so `move` can refuse one of these.
+    public static func moveTargets(from column: Column) -> [Column] {
+        Column.allCases.reversed().filter { allowedMoves.contains([column, $0]) }
+    }
+
     @discardableResult
     private func record(_ kind: Event.Kind, for card: NSManagedObject?) throws -> NSManagedObject {
         record(kind, for: card, at: try nextTimestamp())
