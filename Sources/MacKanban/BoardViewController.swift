@@ -809,6 +809,7 @@ private final class CardView: NSView, NSDraggingSource {
             item.representedObject = target
         }
         if isEditable {
+            menu.addItem(.separator())  // Discard apart from the rest
             menu.addItem(withTitle: "Discard", action: #selector(discardFromMenu(_:)), keyEquivalent: "").target = self
         }
         return menu.items.isEmpty ? nil : menu  // a Done Sample Card offers nothing
