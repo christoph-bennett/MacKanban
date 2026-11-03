@@ -4,6 +4,7 @@ import KanbanCore
 /// The three Columns side by side, each listing its Cards. A clicked Card is
 /// selected; ⌘→ and ⌘← (the Card menu) or dragging move it between Columns.
 /// Its pencil, a double-click or Return opens it; ⌘⌫ or its context menu Discards it.
+/// Esc deselects it, and a second Esc closes the window.
 @MainActor
 final class BoardViewController: NSViewController, NSMenuItemValidation {
     private let board: Board
@@ -290,6 +291,21 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         }
     }
 
+    /// Esc clears the selection; with nothing selected it closes the Board window,
+    /// and if no other MacKanban window is left, hides MacKanban so the app the user
+    /// came from is in front again. A sheet or a drag takes Esc before this does.
+    override func cancelOperation(_ sender: Any?) {
+        if selectedCard != nil { return select(nil) }
+        guard let window = view.window else { return }
+        window.performClose(sender)
+        guard !window.isVisible else { return }
+        // A minimized Archive or Settings window still counts as open.
+        let othersOpen = NSApp.windows.contains {
+            $0 !== window && ($0.isVisible || $0.isMiniaturized) && $0.styleMask.contains(.titled) && !$0.isSheet
+        }
+        if !othersOpen { NSApp.hide(nil) }
+    }
+
     @objc func editCard(_ sender: Any?) {
         selectedCard.map(open)
     }
@@ -300,7 +316,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
 
     /// Only redraws the selection: rebuilding the Card views would replace the
     /// one being clicked, and a drag starting from it would have no window.
-    private func select(_ card: UUID) {
+    /// `nil` clears the selection.
+    private func select(_ card: UUID?) {
         selectedCard = card
         view.window?.makeFirstResponder(view)  // so the Card menu's shortcuts reach this controller
         for view in columnViews { view.select(card) }
@@ -537,7 +554,8 @@ private final class ColumnView: NSView {
         cards.arrangedSubviews.lazy.compactMap { ($0 as? CardView)?.card }.first { $0.id == id }
     }
 
-    func select(_ card: UUID) {
+    /// `nil` clears the selection.
+    func select(_ card: UUID?) {
         for case let view as CardView in cards.arrangedSubviews {
             view.isSelected = view.card.id == card
         }
