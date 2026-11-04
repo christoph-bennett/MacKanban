@@ -2,7 +2,8 @@ import AppKit
 import KanbanCore
 
 /// The three Columns side by side, each listing its Cards. A clicked Card is
-/// selected; ⌘→ and ⌘← (the Card menu) or dragging move it between Columns.
+/// selected, and a click anywhere else on the Board clears the selection;
+/// ⌘→ and ⌘← (the Card menu) or dragging move it between Columns.
 /// Its pencil, a double-click or Return opens it; ⌘⌫ or its context menu Discards it.
 /// Esc closes the window; the selection is still there when it comes back.
 @MainActor
@@ -315,10 +316,24 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
 
     /// Only redraws the selection: rebuilding the Card views would replace the
     /// one being clicked, and a drag starting from it would have no window.
-    private func select(_ card: UUID) {
+    /// `nil` clears it.
+    private func select(_ card: UUID?) {
         selectedCard = card
         view.window?.makeFirstResponder(view)  // so the Card menu's shortcuts reach this controller
         for view in columnViews { view.select(card) }
+    }
+
+    /// A click on the Board that no Card took (an empty part of a Column, its
+    /// header, the gaps and margins) comes up the responder chain to here and
+    /// clears the selection. Cards handle their own clicks; the title bar isn't
+    /// in this view.
+    override func mouseDown(with event: NSEvent) {
+        select(nil)
+    }
+
+    /// The same for a right click: the Board has no menu of its own there.
+    override func rightMouseDown(with event: NSEvent) {
+        select(nil)
     }
 
     private func move(_ card: UUID, to column: Column) {
@@ -553,7 +568,8 @@ private final class ColumnView: NSView {
         cards.arrangedSubviews.lazy.compactMap { ($0 as? CardView)?.card }.first { $0.id == id }
     }
 
-    func select(_ card: UUID) {
+    /// `nil` shows no Card as selected.
+    func select(_ card: UUID?) {
         for case let view as CardView in cards.arrangedSubviews {
             view.isSelected = view.card.id == card
         }
@@ -796,6 +812,13 @@ private final class CardView: NSView, NSDraggingSource {
 
     override func mouseEntered(with event: NSEvent) { isHovered = true }
     override func mouseExited(with event: NSEvent) { isHovered = false }
+
+    /// A right click stays with the Card even when it has no menu (a Done Sample
+    /// Card): passed on, it would reach the Board, which clears the selection.
+    override func rightMouseDown(with event: NSEvent) {
+        guard let menu = menu(for: event) else { return }  // selected either way
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
 
     override func menu(for event: NSEvent) -> NSMenu? {
         onSelect?()
