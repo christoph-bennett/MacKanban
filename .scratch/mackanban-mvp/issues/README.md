@@ -18,3 +18,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 12 | [Sample Cards](12-sample-cards.md) | none | done |
 | 13 | [Tab in the Title goes to Notes](13-tab-from-title-to-notes.md) | none | done |
 | 14 | [Return in Notes saves the Card](14-return-in-notes-saves.md) | none | done |
+| 15 | [A click beside the Cards clears the selection](15-click-beside-cards-deselects.md) | none | ready-for-agent |
