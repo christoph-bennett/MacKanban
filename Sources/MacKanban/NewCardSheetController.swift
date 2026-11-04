@@ -168,6 +168,9 @@ final class NewCardSheetController: NSViewController {
         guard let window = view.window else { return }  // the first step, before the sheet is up
         view.layoutSubtreeIfNeeded()
         window.setContentSize(view.fittingSize)
+        // The window worked out its Tab order for the step it opened with; without
+        // this, Tab in the title after Triage goes nowhere.
+        window.recalculateKeyViewLoop()
         if let title = step.firstKeyView(ofType: NSTextField.self) { window.makeFirstResponder(title) }
     }
 }

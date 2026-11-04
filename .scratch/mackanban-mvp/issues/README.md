@@ -16,5 +16,5 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 10 | [Archive](10-archive.md) | 03, 06 | done |
 | 11 | [Menu bar extra](11-menu-bar-extra.md) | 09 | done |
 | 12 | [Sample Cards](12-sample-cards.md) | none | done |
-| 13 | [Tab in the Title goes to Notes](13-tab-from-title-to-notes.md) | none | ready-for-agent |
 | 14 | [Return in Notes saves the Card](14-return-in-notes-saves.md) | none | ready-for-agent |
+| 13 | [Tab in the Title goes to Notes](13-tab-from-title-to-notes.md) | none | done |
