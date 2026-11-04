@@ -71,6 +71,7 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
         notesView.isRichText = false
         notesView.allowsUndo = true
         notesView.isEditable = !isReadOnly
+        notesView.onReturn = { [weak self] in self?.save(nil) }
         notesView.textContainerInset = NSSize(width: 2, height: 4)
         let notesScroll = NSScrollView()
         notesScroll.documentView = notesView
@@ -151,11 +152,14 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
     }
 }
 
-/// The notes field: Return starts a new line here instead of pressing the
-/// sheet's default button, which would save and close mid-sentence. Tab and
-/// Shift-Tab move to the next and previous field, as in any Mac dialog;
-/// ⌥Tab still types a tab.
+/// The notes field. Return (and keypad Enter) saves, as in the title field;
+/// with an empty title it does nothing rather than start a new line. ⇧Return,
+/// ⌥Return and ⇧⌥Return start a new line. Tab and Shift-Tab move to the next and
+/// previous field, as in any Mac dialog; ⌥Tab still types a tab.
 private final class NotesTextView: NSTextView {
+    /// What plain Return does while editing: the sheet's save.
+    var onReturn: (() -> Void)?
+
     override func insertTab(_ sender: Any?) {
         window?.selectNextKeyView(sender)
     }
@@ -164,14 +168,30 @@ private final class NotesTextView: NSTextView {
         window?.selectPreviousKeyView(sender)
     }
 
+    /// Handled here, before the default button sees it: a disabled Save button
+    /// would let plain Return through as a new line.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let isPlainReturn = (event.keyCode == 36 || event.keyCode == 76)
-            && event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty
-        guard isPlainReturn, window?.firstResponder === self, isEditable else {
+        let isReturn = event.keyCode == 36 || event.keyCode == 76  // Return, keypad Enter
+        guard isReturn, window?.firstResponder === self, isEditable else {
             return super.performKeyEquivalent(with: event)
         }
-        insertNewline(nil)
-        return true
+        // An input method composing text (Japanese, Pinyin, dead keys) takes Return
+        // to accept the candidate: pass it on as a normal key press.
+        if hasMarkedText() {
+            keyDown(with: event)
+            return true
+        }
+        let modifiers = event.modifierFlags.intersection([.shift, .option, .control, .command])
+        if modifiers.isEmpty {
+            // A held Return would save again while the sheet is still closing.
+            if !event.isARepeat { onReturn?() }
+            return true
+        }
+        if modifiers.isSubset(of: [.shift, .option]) {
+            insertNewline(nil)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 }
 

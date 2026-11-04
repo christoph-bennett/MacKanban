@@ -14,7 +14,7 @@
 
 **Notes from implementing:**
 - The New Card sheet became the Card sheet: new, edit, and read-only for Done Cards (Esc or Return closes it).
-- Return in the notes field starts a new line; Return in the title field saves.
+- Return in the notes field starts a new line; Return in the title field saves. (Changed on 2026-11-04, ticket 14: Return in Notes saves too; ⇧Return and ⌥Return start a new line.)
 - The Card menu (Edit Card… / Open Card… for Done, Discard Card ⌘⌫, moves) is off while a sheet is up, so shortcuts typed in the sheet can't act on the Card being edited.
 - Discard has no confirmation: ⌘Z (ticket 07) makes it reversible. Until 07 lands, a Discard can't be taken back.
 - Checked by hand by Christoph on 2026-10-23.
@@ -26,3 +26,5 @@
 - Adjusted at Christoph's request: 7 pt from the right as well as the top (it was 10 pt from the right, on the age label's edge).
 - Fixed on 2026-11-03 at Christoph's request: in the Card sheet (New Card and Edit), Tab in Notes typed a tab and Shift-Tab didn't go back to Title. Tab and Shift-Tab now move to the next and previous field like any Mac dialog; ⌥Tab still types a tab. The order follows the system's keyboard navigation setting: with it on (as on Christoph's Mac), Title → Notes → Cancel → Save (when enabled) → Title; with it off, Title ↔ Notes. Checked with synthesized key events, 0.3 s apart, in both sheets and both directions. Checked by hand by Christoph on 2026-11-03.
 - Changed on 2026-11-03 at Christoph's request: a Done Card's read-only sheet asks for nothing, so its menu items lose the ellipsis: Open in the context menu and Open Card in the Card menu (HIG: "…" only when a command needs more input before it completes, as with Edit…). Checked by hand by Christoph on 2026-11-03.
+- Fixed on 2026-11-04 (ticket 13): after a Triage decision, Tab in the title of the New Card sheet went nowhere. The 2026-11-03 checks above covered only the New Card sheet on an open Board and Edit.
+- Changed on 2026-11-04 (ticket 14): Return and keypad Enter in Notes save ("Add Card" or "Save"); with an empty title they do nothing. ⇧Return and ⌥Return start a new line.
