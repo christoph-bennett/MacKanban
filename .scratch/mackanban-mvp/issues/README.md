@@ -19,4 +19,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 13 | [Tab in the Title goes to Notes](13-tab-from-title-to-notes.md) | none | done |
 | 14 | [Return in Notes saves the Card](14-return-in-notes-saves.md) | none | done |
 | 15 | [A click beside the Cards clears the selection](15-click-beside-cards-deselects.md) | none | done |
-| 16 | [Card count in the Backlog and Done headers](16-card-counts-in-headers.md) | none | ready-for-agent |
+| 16 | [Card count in the Backlog and Done headers](16-card-counts-in-headers.md) | none | done |

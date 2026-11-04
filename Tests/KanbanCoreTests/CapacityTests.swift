@@ -86,4 +86,23 @@ struct CapacityTests {
         let capacity = try board.capacity()
         #expect((capacity.throughput, capacity.aging, capacity.openCards) == (0, 0, 0))
     }
+
+    @Test func backlogHasTheRoomTheCapacityLeavesBesideDoing() throws {
+        _ = try create("Backlog 1")
+        _ = try create("Backlog 2")
+        try board.move(try create("Started"), to: .doing)
+
+        // Capacity 5, 1 Card in Doing: room for 4 in Backlog, 2 of them used.
+        #expect(try board.state().roomForBacklog == 4)
+    }
+
+    @Test func backlogsRoomNeverGoesBelowZero() throws {
+        for index in 1...3 { try finish("Done \(index)") }
+        let doing = try create("Started")
+        try board.move(doing, to: .doing)
+        for index in 1...6 { _ = try create("Old \(index)") }
+        clock.advance(days: 30)  // 7 fully red Open Cards, the Throughput has run out: Capacity −2
+
+        #expect(try board.state().roomForBacklog == 0)
+    }
 }

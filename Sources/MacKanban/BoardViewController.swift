@@ -74,11 +74,23 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             if let selectedCard, !columns.values.contains(where: { $0.contains { $0.id == selectedCard } }) {
                 self.selectedCard = nil
             }
-            for view in columnViews {
-                view.show(columns[view.column] ?? [], selected: selectedCard, showsAges: showsAges)
-            }
             let wip = WIPStatus(count: columns[.doing]?.count ?? 0, limit: board.wipLimit)
-            columnViews.first { $0.column == .doing }?.showCount("\(wip.count) / \(wip.limit)", isWarning: wip.isOverLimit)
+            for view in columnViews {
+                let cards = columns[view.column] ?? []
+                view.show(cards, selected: selectedCard, showsAges: showsAges)
+                switch view.column {
+                case .doing:
+                    view.showCount("\(wip.count) / \(wip.limit)", isWarning: wip.isOverLimit)
+                case .backlog:
+                    // The room the Capacity leaves beside Doing. Never red: over it, creating is
+                    // blocked, and the Capacity gauge already says so.
+                    let room = state.roomForBacklog
+                    view.showCount("\(cards.count) / \(room)", spoken: "\(cards.count) of \(room) Cards", isWarning: false)
+                case .done:
+                    // No limit: just how many Cards are in it, without the Archive.
+                    view.showCount("\(cards.count)", spoken: cards.count == 1 ? "1 Card" : "\(cards.count) Cards", isWarning: false)
+                }
+            }
             onStateChange?(state)
         } catch {
             show(error)
@@ -552,12 +564,14 @@ private final class ColumnView: NSView {
         }
     }
 
-    /// Text on the right of the Column's title, e.g. Doing's "2 / 3".
-    func showCount(_ text: String, isWarning: Bool) {
+    /// Text on the right of the Column's title: Doing's "2 / 3", Backlog's "5 / 10", Done's plain count.
+    /// - Parameter spoken: what VoiceOver reads instead of `text`, if anything.
+    func showCount(_ text: String, spoken: String? = nil, isWarning: Bool) {
         count.stringValue = text
         count.textColor = isWarning ? .systemRed : .secondaryLabelColor
         isOverLimit = isWarning
-        count.setAccessibilityLabel(isWarning ? "\(text), over the WIP Limit" : text)
+        let label = spoken ?? text
+        count.setAccessibilityLabel(isWarning ? "\(label), over the WIP Limit" : label)
     }
 
     func contains(_ card: UUID?) -> Bool {

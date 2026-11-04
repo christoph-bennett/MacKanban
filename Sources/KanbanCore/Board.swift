@@ -17,6 +17,13 @@ public struct Card: Equatable, Identifiable, Sendable {
 public struct BoardState: Sendable {
     public let columns: [Column: [Card]]
     public let capacity: Capacity
+
+    /// How many Cards the Capacity leaves for Backlog beside the Cards in Doing:
+    /// shown as "count / room" in Backlog's header. Never below 0, though the
+    /// Capacity itself has no floor.
+    public var roomForBacklog: Int {
+        max(0, capacity.total - (columns[.doing]?.count ?? 0))
+    }
 }
 
 /// How full Doing is: shown as "count / limit" in its header.
