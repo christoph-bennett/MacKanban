@@ -42,6 +42,11 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
         boardView.reload()
     }
 
+    /// Closes the Board as Esc does, handing back to the previous app if nothing else is open.
+    func closeAndHandBack() {
+        boardView.closeAndHandBack(nil)
+    }
+
     @objc func newCard(_ sender: Any?) {
         boardView.newCard()
     }

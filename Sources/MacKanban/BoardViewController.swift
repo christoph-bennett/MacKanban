@@ -308,6 +308,11 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     /// window is left, hides MacKanban so the app the user came from is in front again.
     /// A sheet or a drag takes Esc before this does.
     override func cancelOperation(_ sender: Any?) {
+        closeAndHandBack(sender)
+    }
+
+    /// Esc's way out, also taken by the show-Board hotkey when the Board is in front.
+    func closeAndHandBack(_ sender: Any?) {
         guard let window = view.window else { return }
         window.performClose(sender)
         guard !window.isVisible else { return }

@@ -16,3 +16,7 @@ Shortcuts shows the package's AppKit recorder for "Show Board", its text centred
 - [ ] The launch-time "couldn't be registered" note and the sample-store note show when they apply
 - [ ] Screenshots of both tabs in light and dark; checked by Christoph by hand
 - [ ] Spec 0001's Settings decision gets a dated note pointing to spec 0002
+
+**Notes from ticket 01 (2026-11-05):**
+- KeyboardShortcuts stores the hotkey in the standard defaults, which a sample-store instance shares with the real app (its own settings live in a separate suite). So in a sample-store instance the Shortcuts tab shows only its note, with no recorder or Restore Default, or recording there would change the real app's hotkey.
+- When another app holds the saved combination at launch, the package drops the registration without a word. Check it before registering (as MacJot does), log it, and show the launch-time note.

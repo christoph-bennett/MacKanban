@@ -4,5 +4,5 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 
 | # | Ticket | Blocked by | Status |
 |---|---|---|---|
-| 01 | [⌃⌥K brings the Board to the front and back](01-hotkey-toggles-the-board.md) | none | ready-for-agent |
+| 01 | [⌃⌥K brings the Board to the front and back](01-hotkey-toggles-the-board.md) | none | done |
 | 02 | [Settings tabs and the Shortcuts tab](02-settings-tabs-and-shortcuts.md) | 01 | ready-for-agent |

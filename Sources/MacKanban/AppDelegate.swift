@@ -1,5 +1,6 @@
 import AppKit
 import KanbanCore
+import KeyboardShortcuts
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -55,6 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSApp.mainMenu = MainMenu.make(appDelegate: self)
+        // A sample store's MacKanban leaves the hotkey to the real one.
+        if isRealStore {
+            KeyboardShortcuts.onKeyDown(for: .showBoard) { [weak self] in self?.toggleBoard() }
+        }
         quitNormallyOnTerminationSignal()
         showBoard()
         NSApp.activate()
@@ -113,11 +118,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings?.showWindow(nil)
     }
 
+    /// Every way to it is the user asking for the Board (hotkey, menu bar extra,
+    /// Dock, menus), so it insists on activating: since macOS 14, plain `activate()`
+    /// is only a request the system may turn down while another app is in use, and
+    /// for the hotkey it did. The call is deprecated but still works.
     @objc func showBoard() {
         guard let board else { return }  // the store didn't open and MacKanban is quitting
         board.showWindow(nil)
         board.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// The show-Board hotkey (spec 0002): the Board to the front, or, when it's
+    /// already in front with nothing open on it, away again as with Esc. A sheet on
+    /// the Board keeps it where it is, so a half-written Card isn't hidden.
+    func toggleBoard() {
+        guard let board, let window = board.window else { return }
+        // Main rather than key: a popover on the Board (the Capacity gauge's) takes key.
+        if NSApp.isActive, window.isVisible, window.isMainWindow, window.attachedSheet == nil {
+            board.closeAndHandBack()
+        } else {
+            showBoard()
+        }
     }
 
     /// `kill`/`pkill` (e.g. scripts/install.sh) send SIGTERM, which would end

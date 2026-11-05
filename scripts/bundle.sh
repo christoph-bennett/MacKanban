@@ -14,5 +14,7 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp "$BIN_DIR/MacKanban" "$APP/Contents/MacOS/MacKanban"
 # Made by scripts/make-icon.sh from the artwork (scripts/icon-artwork.swift draws it).
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+# KeyboardShortcuts' texts (ADR 0006); without them its recorder crashes.
+cp -R "$BIN_DIR/KeyboardShortcuts_KeyboardShortcuts.bundle" "$APP/Contents/Resources/"
 codesign --force --sign - "$APP"
 echo "Built $APP"
