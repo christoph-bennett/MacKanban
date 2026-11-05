@@ -13,7 +13,7 @@ Everything in [spec 0001](./docs/specs/0001-mvp.md), including **Sample Cards** 
 ## Later
 
 - **Manual reordering ("planning order")** in Backlog and Doing, so I can plan which Cards to do first. The order is only a plan: it never affects Urgency or Capacity, and the default stays oldest first. Deferred 2026-10-23: fixed order first, see how it feels.
-- **Global New Card hotkey** with a small quick-add panel from any app, going through Triage and the Capacity block like the sheet. Would bring in KeyboardShortcuts as in MacJot. Deferred 2026-10-23.
+- **Global New Card hotkey** with a small quick-add panel from any app, going through Triage and the Capacity block like the sheet. Deferred 2026-10-23. A global hotkey that shows the Board came first (2026-11-05, [spec 0002](./docs/specs/0002-show-board-hotkey.md)); it brings in KeyboardShortcuts (ADR 0006), which this item would reuse.
 - **Dashboard** of the Board's history: Throughput over time, how long Cards spend in each Column, Cards kept repeatedly in Triage, Creation Blocked frequency, WIP Limit changes. The MVP already records every Card Event and Board Event for it (ADR 0002). Requested 2026-10-23.
 - **iCloud sync** via `NSPersistentCloudKitContainer`. The model is already CloudKit-ready (ADR 0002). Needs a Developer ID signature, an iCloud container and entitlements, plus a rule for merging conflicting Column Visits.
 
