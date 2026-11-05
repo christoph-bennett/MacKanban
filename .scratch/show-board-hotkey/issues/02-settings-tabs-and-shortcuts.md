@@ -9,10 +9,10 @@ Shortcuts shows the package's AppKit recorder for "Show Board", its text centred
 **Status:** done
 
 - [x] Settings open on a tab switcher with General and Shortcuts; General looks and works as Settings did; the title follows the tab; the window fits each tab
-- [ ] The recorder shows ⌃⌥K centred; recording another combination changes the hotkey at once, and it survives a relaunch
-- [ ] ⌘N (or another menu combination) is refused with the package's reason; a combination another app holds is refused with MacKanban's message, and the previous hotkey stays
-- [ ] Clearing the recorder leaves MacKanban without a global hotkey
-- [ ] Restore Default sets ⌃⌥K again
+- [x] The recorder shows ⌃⌥K centred; recording another combination changes the hotkey at once, and it survives a relaunch
+- [x] ⌘N (or another menu combination) is refused with the package's reason; a combination another app holds is refused with MacKanban's message, and the previous hotkey stays
+- [x] Clearing the recorder leaves MacKanban without a global hotkey
+- [x] Restore Default sets ⌃⌥K again
 - [x] The launch-time "couldn't be registered" note and the sample-store note show when they apply
 - [x] Screenshots of both tabs in light and dark; checked by Christoph by hand
 - [x] Spec 0001's Settings decision gets a dated note pointing to spec 0002
@@ -27,3 +27,4 @@ Shortcuts shows the package's AppKit recorder for "Show Board", its text centred
 - A sample-store instance shows only a note in the tab (no recorder, no Restore Default), since KeyboardShortcuts keeps the hotkey in the standard defaults shared with the real app.
 - Checked by screenshot (TEMP switches to pick the tab, show the recorder variant read-only in a sample instance, force the red note, dark mode): General light and dark; Shortcuts light; Shortcuts dark with the red note; the sample-store variant. Recording, refusing and Restore Default need real key presses: Christoph checks them by hand, as the unchecked criteria say.
 - Code review (medium): applied: a newly recorded (or cleared) hotkey hides the red note at once and refits the window; Restore Default no longer hides the note when ⌃⌥K is stored but another app still holds it (it probes then), and it clears the hotkey before resetting so ⌃⌥K is registered afresh; switching tabs resizes the window before the new tab is shown, so it isn't squeezed into the old size; General's notes use the same note helper as Shortcuts. Rechecked: an animated switch to Shortcuts ends at the right size. Not changed: the probe only catches combinations another app holds exclusively (a limit ADR 0006 records; the message says "may be"); using the package's own registration-failed callback instead of a probe (it would mean a fifth patch to the vendored copy, shared with MacJot, which works the same way); the window title being the tab's name rather than "MacKanban Settings" (as in MacJot and Apple's own Settings windows); reading the settings again on every tab switch (cheap).
+- Checked by hand by Christoph on 2026-11-05.
