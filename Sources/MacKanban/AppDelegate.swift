@@ -20,7 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let model = try Board(storeURL: Self.storeURL, wipLimit: defaults.integer(forKey: SettingsWindowController.wipLimitKey))
             let board = BoardWindowController(board: model)
-            let settings = SettingsWindowController(board: model, defaults: defaults, offersLaunchAtLogin: isRealStore)
+            let settings = SettingsWindowController(board: model, defaults: defaults, offersLaunchAtLogin: isRealStore,
+                                                     registersHotkey: isRealStore)
             settings.onWIPLimitChange = { [weak board] in board?.reload() }
             board.showsAges = defaults.bool(forKey: SettingsWindowController.showsAgesKey)
             settings.onShowsAgesChange = { [weak board] in board?.showsAges = $0 }
@@ -58,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenu.make(appDelegate: self)
         // A sample store's MacKanban leaves the hotkey to the real one.
         if isRealStore {
+            ShowBoardHotkey.checkAvailableBeforeRegistering()
             KeyboardShortcuts.onKeyDown(for: .showBoard) { [weak self] in self?.toggleBoard() }
         }
         quitNormallyOnTerminationSignal()

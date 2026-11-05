@@ -1,11 +1,25 @@
 import AppKit
 import KanbanCore
+import KeyboardShortcuts
 
-/// Settings: the WIP Limit, the only rule the user can change (ADR 0001), the
-/// age labels on Cards, and Launch at login. AppKit rather than SwiftUI: a WIP Limit change has to go
-/// through the Board, which records it as a Board Event.
+/// Settings, in two tabs switched from the toolbar as in MacJot (spec 0002).
+/// General: the WIP Limit, the only rule the user can change (ADR 0001), the age
+/// labels on Cards, and Launch at login. Shortcuts: the show-Board hotkey.
+/// AppKit rather than SwiftUI: a WIP Limit change has to go through the Board,
+/// which records it as a Board Event.
 @MainActor
-final class SettingsWindowController: NSWindowController {
+final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
+    enum Pane: Int, CaseIterable {
+        case general, shortcuts
+
+        var title: String {
+            switch self {
+            case .general: "General"
+            case .shortcuts: "Shortcuts"
+            }
+        }
+    }
+
     static let wipLimitKey = "wipLimit"
     /// Here rather than in a View menu, where people would look for it (decided
     /// 2026-10-24, overriding HIG audit finding 5).
@@ -19,36 +33,62 @@ final class SettingsWindowController: NSWindowController {
     private let board: Board
     private let defaults: UserDefaults
     private let offersLaunchAtLogin: Bool
+    private let registersHotkey: Bool
     private let wipLimit = NSPopUpButton()
     private let showsAges = NSButton(checkboxWithTitle: "Show ages on Cards", target: nil, action: nil)
     private let launchAtLogin = NSButton(checkboxWithTitle: "Open MacKanban at login", target: nil, action: nil)
     private let approvalNote = NSTextField(wrappingLabelWithString: "")
     private var grid: NSGridView!
     private static let approvalRow = 5
+    private var panes: [Pane: NSView] = [:]
+    private var current: Pane?
+    private let hotkeyNote = NSTextField(wrappingLabelWithString: "")
+    private var shortcutsGrid: NSGridView?
+    private static let switcherID = NSToolbarItem.Identifier("SettingsPanes")
+    private lazy var switcher: NSSegmentedControl = {
+        let control = NSSegmentedControl(labels: Pane.allCases.map(\.title), trackingMode: .selectOne,
+                                         target: self, action: #selector(switchPane(_:)))
+        // Equal segments, like the toolbar switchers in Apple's apps (and MacJot's).
+        let font = control.font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let widest = Pane.allCases.map { ($0.title as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        for index in Pane.allCases.indices { control.setWidth(ceil(widest) + 24, forSegment: index) }
+        control.setAccessibilityLabel("Settings")
+        return control
+    }()
 
-    /// - Parameter offersLaunchAtLogin: false for a sample store, where opening at
-    ///   login would still register the real app.
-    init(board: Board, defaults: UserDefaults, offersLaunchAtLogin: Bool) {
+    /// - Parameters:
+    ///   - offersLaunchAtLogin: false for a sample store, where opening at login
+    ///     would still register the real app.
+    ///   - registersHotkey: false for a sample store: its MacKanban leaves the hotkey
+    ///     to the real one, and KeyboardShortcuts keeps it in the standard defaults,
+    ///     so recording one here would change the real app's.
+    init(board: Board, defaults: UserDefaults, offersLaunchAtLogin: Bool, registersHotkey: Bool) {
         self.board = board
         self.defaults = defaults
         self.offersLaunchAtLogin = offersLaunchAtLogin
+        self.registersHotkey = registersHotkey
         let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: true)
-        window.title = "MacKanban Settings"  // one pane (HIG audit, finding 6)
         window.isReleasedWhenClosed = false
         super.init(window: window)
+        let toolbar = NSToolbar(identifier: "Settings")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        toolbar.allowsUserCustomization = false
+        toolbar.centeredItemIdentifiers = [Self.switcherID]
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        // The switcher takes the title's place; the title (the tab's name) still
+        // names the window for VoiceOver and Mission Control.
+        window.titleVisibility = .hidden
 
         wipLimit.addItems(withTitles: Board.wipLimits.map(String.init))
         wipLimit.target = self
         wipLimit.action = #selector(wipLimitChanged(_:))
-        let wipNote = NSTextField(wrappingLabelWithString: "The most Cards Doing can hold. Starting another Card is refused until one leaves Doing.")
-        wipNote.font = .preferredFont(forTextStyle: .callout)
-        wipNote.textColor = .secondaryLabelColor
+        let wipNote = Self.note("The most Cards Doing can hold. Starting another Card is refused until one leaves Doing.")
 
         showsAges.target = self
         showsAges.action = #selector(showsAgesChanged(_:))
-        let agesNote = NSTextField(wrappingLabelWithString: "How long each Card has been on the Board, or in Doing. The tints show Urgency either way.")
-        agesNote.font = .preferredFont(forTextStyle: .callout)
-        agesNote.textColor = .secondaryLabelColor
+        let agesNote = Self.note("How long each Card has been on the Board, or in Doing. The tints show Urgency either way.")
 
         launchAtLogin.target = self
         launchAtLogin.action = #selector(launchAtLoginChanged(_:))
@@ -84,15 +124,146 @@ final class SettingsWindowController: NSWindowController {
             note.widthAnchor.constraint(equalToConstant: 300).isActive = true
         }
 
-        let content = NSView()
-        content.addSubview(grid)
+        panes[.general] = Self.paneView(around: grid)
+        panes[.shortcuts] = makeShortcutsPane()
+        // Next time it opens on General; after it's off screen, so the switch isn't seen.
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
+                                               queue: .main) { [weak self] _ in
+            DispatchQueue.main.async { self?.select(.general, animated: false) }
+        }
+        select(.general, animated: false)
+    }
+
+    /// A tab's content with Settings' margins.
+    private static func paneView(around content: NSView) -> NSView {
+        let pane = NSView()
+        content.translatesAutoresizingMaskIntoConstraints = false
+        pane.addSubview(content)
         NSLayoutConstraint.activate([
-            grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
-            grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 30),
-            grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -30),
-            grid.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -20),
+            content.topAnchor.constraint(equalTo: pane.topAnchor, constant: 20),
+            content.leadingAnchor.constraint(equalTo: pane.leadingAnchor, constant: 30),
+            content.trailingAnchor.constraint(equalTo: pane.trailingAnchor, constant: -30),
+            content.bottomAnchor.constraint(equalTo: pane.bottomAnchor, constant: -20),
         ])
-        window.contentView = content
+        return pane
+    }
+
+    /// The recorder (KeyboardShortcuts' own, its text centred by MacJot's patch) and
+    /// Restore Default. The package refuses combinations in MacKanban's menus and
+    /// warns about ones macOS uses; a combination another app holds is refused here.
+    /// A refused one isn't saved, so the previous hotkey stays. Clearing it turns
+    /// the hotkey off. A sample store's MacKanban shows only a note.
+    private func makeShortcutsPane() -> NSView {
+        hotkeyNote.font = .preferredFont(forTextStyle: .callout)
+        hotkeyNote.textColor = .systemRed
+        hotkeyNote.stringValue = "Another app is using this combination, so it doesn’t work in MacKanban. Record a different one."
+        let explanation = Self.note("Brings the Board to the front from any app. Pressed again while the Board is in front, it closes it, as Esc does.")
+        let restoreNote = Self.note("Sets the hotkey back to \(ShowBoardHotkey.defaultDisplayString).")
+        let sampleNote = Self.note("Not active in a MacKanban opened on a sample store, so it doesn’t take the hotkey from your real MacKanban.")
+        for note in [hotkeyNote, explanation, restoreNote, sampleNote] {
+            note.preferredMaxLayoutWidth = 300
+            note.widthAnchor.constraint(equalToConstant: 300).isActive = true
+        }
+        let rows: [[NSView]]
+        if registersHotkey {
+            let recorder = KeyboardShortcuts.RecorderCocoa(for: .showBoard) { [weak self] _ in
+                // Saved only after passing the check below, so it's registered now (or cleared).
+                ShowBoardHotkey.isUnavailable = false
+                self?.refresh()
+                self?.fitWindowToPane()
+            }
+            recorder.validateShortcut = { shortcut in
+                ShowBoardHotkey.problem(recording: shortcut).map { .disallow(reason: $0) } ?? .allow
+            }
+            recorder.setAccessibilityLabel("Show Board hotkey")
+            let restore = NSButton(title: "Restore Default", target: self, action: #selector(restoreDefaultHotkey(_:)))
+            rows = [
+                [NSTextField(labelWithString: "Show Board:"), recorder],
+                [NSGridCell.emptyContentView, hotkeyNote],
+                [NSGridCell.emptyContentView, explanation],
+                [NSGridCell.emptyContentView, restore],
+                [NSGridCell.emptyContentView, restoreNote],
+            ]
+        } else {
+            rows = [[NSTextField(labelWithString: "Show Board:"), sampleNote]]
+        }
+        let grid = NSGridView(views: rows)
+        grid.column(at: 0).xPlacement = .trailing
+        grid.rowAlignment = .firstBaseline
+        grid.rowSpacing = 4
+        grid.columnSpacing = 8
+        if registersHotkey {
+            grid.row(at: 2).bottomPadding = 12
+            shortcutsGrid = grid
+        }
+        return Self.paneView(around: grid)
+    }
+
+    private static func note(_ text: String) -> NSTextField {
+        let note = NSTextField(wrappingLabelWithString: text)
+        note.font = .preferredFont(forTextStyle: .callout)
+        note.textColor = .secondaryLabelColor
+        return note
+    }
+
+    // MARK: Tabs
+
+    @objc private func switchPane(_ control: NSSegmentedControl) {
+        Pane(rawValue: control.selectedSegment).map { select($0, animated: true) }
+    }
+
+    /// Shows `pane` at its natural size, keeping the window's top edge in place.
+    private func select(_ pane: Pane, animated: Bool) {
+        guard let window, pane != current, let view = panes[pane] else { return }
+        current = pane
+        switcher.selectedSegment = pane.rawValue
+        window.title = pane.title
+        refresh()
+        // Resized first, then shown: pinned into the old size, the tab would be
+        // squeezed or stretched for the length of the animation.
+        let size = view.fittingSize
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: size))
+        frame.origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - frame.height)
+        window.contentView = nil
+        window.setFrame(frame, display: true, animate: animated && window.isVisible)
+        window.contentView = view
+    }
+
+    /// The window's content is the current tab at its natural size, top edge fixed;
+    /// the note rows shown decide that size.
+    private func fitWindowToPane(animated: Bool = false) {
+        guard let window, let view = window.contentView else { return }
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: view.fittingSize))
+        guard frame.size != window.frame.size else { return }
+        frame.origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - frame.height)
+        window.setFrame(frame, display: true, animate: animated && window.isVisible)
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [Self.switcherID]
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [Self.switcherID]
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        item.view = switcher
+        item.label = "Settings"
+        return item
+    }
+
+    @objc private func restoreDefaultHotkey(_ sender: Any?) {
+        let restored = ShowBoardHotkey.restoreDefault()
+        refresh()
+        fitWindowToPane()
+        guard !restored, let window else { return }
+        let alert = NSAlert()
+        alert.messageText = "\(ShowBoardHotkey.defaultDisplayString) is in use by another app."
+        alert.informativeText = "So the hotkey keeps its current combination."
+        alert.beginSheetModal(for: window)
     }
 
     @available(*, unavailable)
@@ -100,6 +271,7 @@ final class SettingsWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         refresh()
+        fitWindowToPane()
         if window?.isVisible == false { window?.center() }
         super.showWindow(sender)
         NSApp.activate()
@@ -115,6 +287,7 @@ final class SettingsWindowController: NSWindowController {
         launchAtLogin.state = state == .on || state == .needsApproval ? .on : .off
         launchAtLogin.isEnabled = offersLaunchAtLogin && state != .unavailable
         grid.row(at: Self.approvalRow).isHidden = state != .needsApproval
+        shortcutsGrid?.row(at: 1).isHidden = !ShowBoardHotkey.isUnavailable
     }
 
     @objc private func wipLimitChanged(_ sender: NSPopUpButton) {
