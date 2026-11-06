@@ -37,7 +37,7 @@ One stretch of time a Card spent in a Column, from when it entered to when it le
 _Avoid_: Transition, move, history entry
 
 **Card Event**:
-A recorded fact about one Card at a point in time: Created, Moved (from one Column to another), Edited, Discarded or Triaged (with its outcome). A Card's Card Events are its complete history. Edited records only that an edit happened, not what changed. Leaving the Board for the Archive is not a Card Event, because it follows from a rule rather than happening.
+A recorded fact about one Card at a point in time: Created, Moved (from one Column to another), Edited, Discarded, Triaged (with its outcome) or Archived (the user sent a Done Card to the Archive before the Archive Delay was up). A Card's Card Events are its complete history. Edited records only that an edit happened, not what changed. A Done Card leaving the Board once the Archive Delay is up is not a Card Event, because it follows from a rule rather than happening.
 _Avoid_: Activity, log entry, change, transition
 
 **Board Event**:
@@ -57,8 +57,12 @@ A Card the app adds to show how the Board works, rather than one the user create
 _Avoid_: Demo card, example card, placeholder
 
 **Archive**:
-Where Done Cards go after a while. They are no longer shown on the Board but still count toward history.
+Where Cards go when they leave the Board for good: Done Cards once the Archive Delay is up or when the user archives them earlier, and Discarded Cards straight away. A Done Card in the Archive still counts toward Throughput for as long as it would on the Board.
 _Avoid_: Trash, history
+
+**Archive Delay**:
+How long a Done Card stays on the Board before it goes to the Archive on its own. The user chooses it.
+_Avoid_: Retention, archive period
 
 ### Age and urgency
 

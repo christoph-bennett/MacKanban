@@ -4,7 +4,7 @@ Ideas and requirements not yet built. New items go to **Inbox**. Once triaged th
 
 ## Inbox
 
-(empty)
+- **Restore a Card from the Archive** back to the Board, e.g. a Card Discarded by mistake (2026-11-06). Open: where it goes (Backlog?), whether a restored Discarded Card is an Open Card again and costs Capacity, whether a restored Done Card loses its Throughput. Left out of spec 0003 (Archive), 2026-11-06.
 
 ## MVP
 
