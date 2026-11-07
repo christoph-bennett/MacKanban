@@ -2,19 +2,21 @@ import AppKit
 import KanbanCore
 import KeyboardShortcuts
 
-/// Settings, in two tabs switched from the toolbar as in MacJot (spec 0002).
-/// General: the WIP Limit, the only rule the user can change (ADR 0001), the
-/// Archive Delay (spec 0003), the age labels on Cards, and Launch at login. Shortcuts: the Show Board and New Card hotkeys.
+/// Settings, in three tabs switched from the toolbar as in MacJot (spec 0002,
+/// spec 0004). General: the age labels on Cards and Launch at login. Board: the
+/// WIP Limit, the only rule the user can change (ADR 0001), and the Archive Delay
+/// (spec 0003). Shortcuts: the Show Board and New Card hotkeys.
 /// AppKit rather than SwiftUI: a WIP Limit change has to go through the Board,
 /// which records it as a Board Event.
 @MainActor
 final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     enum Pane: Int, CaseIterable {
-        case general, shortcuts
+        case general, board, shortcuts
 
         var title: String {
             switch self {
             case .general: "General"
+            case .board: "Board"
             case .shortcuts: "Shortcuts"
             }
         }
@@ -41,7 +43,6 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     private let showsAges = NSButton(checkboxWithTitle: "Show ages on Cards", target: nil, action: nil)
     private let launchAtLogin = NSButton(checkboxWithTitle: "Open MacKanban at login", target: nil, action: nil)
     private let approvalNote = NSTextField(wrappingLabelWithString: "")
-    private var grid: NSGridView!
     /// Shown only while Launch at login needs approval.
     private var approvalRow: NSGridRow!
     private var panes: [Pane: NSView] = [:]
@@ -115,33 +116,27 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         approval.orientation = .vertical
         approval.alignment = .leading
 
-        grid = NSGridView(views: [
-            [NSTextField(labelWithString: "WIP Limit:"), wipLimit],
-            [NSGridCell.emptyContentView, wipNote],
-            [NSTextField(labelWithString: "Archive Delay:"), archiveDelay],
-            [NSGridCell.emptyContentView, archiveNote],
+        // A fixed width: with only a preferred one, the grid squeezed the notes
+        // narrower than they were measured for and cut them off.
+        [wipNote, archiveNote, agesNote, approvalNote].forEach(Self.fixWidth)
+
+        let general = Self.settingsGrid([
             [NSTextField(labelWithString: "Cards:"), showsAges],
             [NSGridCell.emptyContentView, agesNote],
             [NSTextField(labelWithString: "Startup:"), launchAtLogin],
             [NSGridCell.emptyContentView, approval],
         ])
-        grid.column(at: 0).xPlacement = .trailing
-        grid.rowAlignment = .firstBaseline
-        // MacJot's Settings spacing (HIG audit, finding 7): an explanation 4 pt below
-        // its control, 16 pt between settings.
-        grid.rowSpacing = 4
-        grid.columnSpacing = 8
-        for note in [wipNote, archiveNote, agesNote] { grid.cell(for: note)?.row?.bottomPadding = 12 }
-        approvalRow = grid.cell(for: approval)?.row
-        grid.translatesAutoresizingMaskIntoConstraints = false
-        // A fixed width: with only a preferred one, the grid squeezed the notes
-        // narrower than they were measured for and cut them off.
-        for note in [wipNote, archiveNote, agesNote, approvalNote] {
-            note.preferredMaxLayoutWidth = 300
-            note.widthAnchor.constraint(equalToConstant: 300).isActive = true
-        }
+        approvalRow = general.cell(for: approval)?.row
+        // The rules for how Cards flow over the Board (spec 0004).
+        let boardGrid = Self.settingsGrid([
+            [NSTextField(labelWithString: "WIP Limit:"), wipLimit],
+            [NSGridCell.emptyContentView, wipNote],
+            [NSTextField(labelWithString: "Archive Delay:"), archiveDelay],
+            [NSGridCell.emptyContentView, archiveNote],
+        ])
 
-        panes[.general] = Self.paneView(around: grid)
+        panes[.general] = Self.paneView(around: general)
+        panes[.board] = Self.paneView(around: boardGrid)
         panes[.shortcuts] = makeShortcutsPane()
         // Next time it opens on General; after it's off screen, so the switch isn't seen.
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
@@ -149,6 +144,22 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
             DispatchQueue.main.async { self?.select(.general, animated: false) }
         }
         select(.general, animated: false)
+    }
+
+    /// Labels right-aligned beside their controls, in MacJot's Settings spacing (HIG
+    /// audit, finding 7): an explanation 4 pt below its control, 16 pt between
+    /// settings, so 12 pt more under a row without a label when a labelled row follows.
+    private static func settingsGrid(_ rows: [[NSView]]) -> NSGridView {
+        let grid = NSGridView(views: rows)
+        grid.column(at: 0).xPlacement = .trailing
+        grid.rowAlignment = .firstBaseline
+        grid.rowSpacing = 4
+        grid.columnSpacing = 8
+        for index in rows.indices.dropLast()
+        where rows[index].first === NSGridCell.emptyContentView && rows[index + 1].first !== NSGridCell.emptyContentView {
+            grid.row(at: index).bottomPadding = 12
+        }
+        return grid
     }
 
     /// A tab's content with Settings' margins.
@@ -192,11 +203,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
             rows = Hotkey.all.map { [NSTextField(labelWithString: "\($0.title):"), Self.note("Off")] }
                 + [[NSGridCell.emptyContentView, sampleNote]]
         }
-        let grid = NSGridView(views: rows)
-        grid.column(at: 0).xPlacement = .trailing
-        grid.rowAlignment = .firstBaseline
-        grid.rowSpacing = 4
-        grid.columnSpacing = 8
+        let grid = Self.settingsGrid(rows)
         func row(of view: NSView) -> NSGridRow? { grid.cell(for: view)?.row }
         if registersHotkey {
             for section in sections {
