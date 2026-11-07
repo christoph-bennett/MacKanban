@@ -325,6 +325,16 @@ private final class CountsCellView: NSTableCellView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    /// The bar's hover text: how many days the Card still counts, in plain words.
+    private static func timeLeft(_ left: TimeInterval) -> String {
+        let days = Int(left / 86_400)
+        return switch days {
+        case 0: "Counts for less than a day more"
+        case 1: "Counts for 1 more day"
+        default: "Counts for \(days) more days"
+        }
+    }
+
     /// Whether it counts comes from the Board (Capacity's rule and clock); the bar
     /// only shows how much of the 14 days is left at `asOf`.
     func show(_ archived: ArchivedCard, asOf: Date) {
@@ -336,7 +346,9 @@ private final class CountsCellView: NSTableCellView {
         }
         let date = countsUntil.formatted(.dateTime.month(.abbreviated).day())
         bar.isHidden = !archived.isCounting
-        bar.doubleValue = min(max(countsUntil.timeIntervalSince(asOf), 0), Self.window)
+        let left = min(max(countsUntil.timeIntervalSince(asOf), 0), Self.window)
+        bar.doubleValue = left
+        bar.toolTip = Self.timeLeft(left)  // the date stays beside it (asked for 2026-11-07)
         label.stringValue = archived.isCounting ? "until \(date)" : "no longer"
         label.textColor = archived.isCounting ? .secondaryLabelColor : .tertiaryLabelColor
         label.setAccessibilityLabel(archived.isCounting ? "Counts toward Throughput until \(date)" : "No longer counts toward Throughput")
