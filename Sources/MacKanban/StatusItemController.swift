@@ -7,6 +7,9 @@ import KanbanCore
 final class StatusItemController: NSObject, NSMenuDelegate {
     var onNewCard: (() -> Void)?
     var onOpenBoard: (() -> Void)?
+    /// As Window > Archive (⌘⇧A): reachable here while the Dock icon, and with it
+    /// the app's menu bar, is hidden (spec 0004).
+    var onOpenArchive: (() -> Void)?
     var onSettings: (() -> Void)?
     /// Moves the chosen Doing Card to Done.
     var onFinish: ((UUID) -> Void)?
@@ -127,6 +130,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "New Card…", action: #selector(newCard(_:)), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Open Board", action: #selector(openBoard(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Open Archive", action: #selector(openArchive(_:)), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Settings…", action: #selector(settings(_:)), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit MacKanban", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
@@ -139,6 +143,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func newCard(_ sender: Any?) { onNewCard?() }
     @objc private func openBoard(_ sender: Any?) { onOpenBoard?() }
+    @objc private func openArchive(_ sender: Any?) { onOpenArchive?() }
     @objc private func settings(_ sender: Any?) { onSettings?() }
     @objc private func addSampleCards(_ sender: Any?) { onAddSampleCards?() }
     @objc private func removeSampleCards(_ sender: Any?) { onRemoveSampleCards?() }

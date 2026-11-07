@@ -28,7 +28,7 @@ final class ArchiveWindowController: NSWindowController {
         archive.reload()
         super.showWindow(sender)
         window?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        NSApp.activateAsAsked()  // also from the menu bar extra
     }
 
     /// After a change on the Board: a Discard shows up here straight away.

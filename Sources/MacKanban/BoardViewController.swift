@@ -231,7 +231,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     func finish(_ id: UUID) {
         guard !isShowingSheet else {
             view.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+            NSApp.activateAsAsked()  // from the menu bar extra
             return NSSound.beep()
         }
         do {
@@ -320,7 +320,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     private func isFreeForSampleCards() -> Bool {
         guard isShowingSheet || view.window?.attachedSheet != nil else { return true }
         view.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        NSApp.activateAsAsked()  // from the menu bar extra
         NSSound.beep()
         return false
     }
@@ -504,7 +504,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         if let window = view.window, window.isVisible {
             NSAlert(error: error).beginSheetModal(for: window)
         } else {
-            NSApp.activate()  // from the menu bar extra, another app may be in front
+            NSApp.activateAsAsked()  // from the menu bar extra, another app may be in front
             presentError(error)
         }
     }

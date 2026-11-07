@@ -331,7 +331,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         fitWindowToPane()
         if window?.isVisible == false { window?.center() }
         super.showWindow(sender)
-        NSApp.activate()
+        window?.makeKeyAndOrderFront(nil)  // in front of the Board once MacKanban activates, as the Archive does
+        NSApp.activateAsAsked()  // also from the menu bar extra
     }
 
     /// Reads the settings again: Launch at login can change in System Settings.

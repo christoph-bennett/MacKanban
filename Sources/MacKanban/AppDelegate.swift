@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let statusItem = StatusItemController(board: model)
             statusItem.onNewCard = { [weak self] in self?.newCard() }
             statusItem.onOpenBoard = { [weak self] in self?.showBoard() }
+            statusItem.onOpenArchive = { [weak self] in self?.showArchive() }
             statusItem.onSettings = { [weak self] in self?.showSettings() }
             statusItem.onFinish = { [weak board] in board?.finish($0) }
             statusItem.onAddSampleCards = { [weak self] in
@@ -50,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.settings = settings
             self.statusItem = statusItem
         } catch {
-            NSApp.activate()
+            NSApp.activateAsAsked()  // also when opened at login, with another app in use
             let alert = NSAlert(error: error)
             alert.messageText = "MacKanban can't open its Board."
             alert.informativeText = "\(error.localizedDescription)\n\nThe store is \(Self.storeURL.path)."
@@ -66,8 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             KeyboardShortcuts.onKeyDown(for: .newCard) { [weak self] in self?.newCardFromHotkey() }
         }
         quitNormallyOnTerminationSignal()
-        showBoard()
-        NSApp.activate()
+        showBoard()  // activates MacKanban too
         offerSampleCardsOnFirstLaunch(defaults: defaults)
     }
 
@@ -124,14 +124,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Every way to it is the user asking for the Board (hotkey, menu bar extra,
-    /// Dock, menus), so it insists on activating: since macOS 14, plain `activate()`
-    /// is only a request the system may turn down while another app is in use, and
-    /// for the hotkey it did. The call is deprecated but still works.
+    /// Dock, menus), so it insists on activating.
     @objc func showBoard() {
         guard let board else { return }  // the store didn't open and MacKanban is quitting
         board.showWindow(nil)
         board.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activateAsAsked()
     }
 
     /// The show-Board hotkey (spec 0002): the Board to the front, or, when it's
