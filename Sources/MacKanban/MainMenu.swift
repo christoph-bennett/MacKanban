@@ -44,6 +44,7 @@ enum MainMenu {
         // ⌘⌫ as in Finder's Move to Trash. "Archive Card" while a Done Card is selected.
         card.addItem(withTitle: "Discard Card", action: #selector(BoardViewController.discardOrArchiveCard(_:)),
                      keyEquivalent: String(UnicodeScalar(NSBackspaceCharacter)!))
+        card.addItem(withTitle: "Archive All Done Cards", action: #selector(BoardViewController.archiveAllDoneCards(_:)), keyEquivalent: "")
         main.addItem(submenu: card, title: "Card")
 
         let window = NSMenu(title: "Window")

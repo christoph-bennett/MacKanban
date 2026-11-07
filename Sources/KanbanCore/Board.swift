@@ -53,6 +53,7 @@ public enum BoardError: LocalizedError, Equatable {
     case cardIsArchived
     case sampleCardCantBeArchived
     case archiveDelayIsUp
+    case nothingToArchive
     case sampleCardIsReadOnly
     case sampleCardsNeedEmptyBoard
     case cannotUndo
@@ -72,6 +73,7 @@ public enum BoardError: LocalizedError, Equatable {
         case .cardIsNotDone: "Only Done Cards can be archived. Finish the Card first, or Discard it."
         case .cardIsArchived: "The Card is already in the Archive."
         case .sampleCardCantBeArchived: "Sample Cards go to the Archive on their own, after the Archive Delay."
+        case .nothingToArchive: "Done has no Cards to archive. Sample Cards go to the Archive on their own."
         case .archiveDelayIsUp: "The Card has been in Done longer than the Archive Delay by now, so it stays in the Archive."
         case .sampleCardIsReadOnly: "Sample Cards can't be edited. Create your own Card instead."
         case .sampleCardsNeedEmptyBoard: "Sample Cards can only be added while the Board has no Open Cards and no Sample Cards."
@@ -236,13 +238,55 @@ public final class Board {
     @discardableResult
     public func archiveCard(_ id: UUID) throws -> Change {
         let card = try anyCard(id)
-        let visits = Self.visits(of: card)
-        guard let column = Self.column(after: visits) else { throw BoardError.cardNotFound }  // Discarded
-        guard column == .done else { throw BoardError.cardIsNotDone }
-        guard !isArchived(visits, at: now()) else { throw BoardError.cardIsArchived }
-        guard !SampleCards.isSample(id) else { throw BoardError.sampleCardCantBeArchived }
+        if let refusal = archiveRefusal(card, visits: Self.visits(of: card), at: now()) { throw refusal }
         let event = try change { try record(.archived, for: card) }
         return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
+    }
+
+    /// Archives every Done Card on the Board except Sample Cards, as one Change, so
+    /// one undo brings them all back (spec 0003). Refused when there's none.
+    @discardableResult
+    public func archiveAllDoneCards() throws -> Change {
+        let cards = try cardsToArchive()
+        guard !cards.isEmpty else { throw BoardError.nothingToArchive }
+        let events = try change { try cards.map { try record(.archived, for: $0) } }
+        // IDs taken after saving: before, they're temporary and undo wouldn't find the events.
+        let changes = zip(cards, events).map { card, event in
+            Change(cardID: card.value(forKey: "id") as! UUID, isCreation: false,  // filtered on its ID above
+                   event: event.objectID.uriRepresentation())
+        }
+        var first = changes[0]
+        first.alongside = Array(changes.dropFirst())
+        return first
+    }
+
+    /// Whether "Archive All Done Cards" would archive anything right now.
+    public func hasDoneCardsToArchive() throws -> Bool {
+        try !cardsToArchive().isEmpty
+    }
+
+    /// The Done Cards that can be archived by hand, newest first as Done shows them.
+    private func cardsToArchive() throws -> [NSManagedObject] {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
+        request.relationshipKeyPathsForPrefetching = ["events"]
+        let now = now()
+        return try context.fetch(request).compactMap { card -> (NSManagedObject, Date)? in
+            let visits = Self.visits(of: card)
+            guard archiveRefusal(card, visits: visits, at: now) == nil, let entered = visits.last?.entered else { return nil }
+            return (card, entered)
+        }
+        .sorted { $0.1 > $1.1 }
+        .map(\.0)
+    }
+
+    /// Why the Card can't be archived by hand, or `nil` if it can: the one rule for
+    /// a single Card and for Archive All.
+    private func archiveRefusal(_ card: NSManagedObject, visits: [ColumnVisit], at now: Date) -> BoardError? {
+        guard let column = Self.column(after: visits) else { return .cardNotFound }  // Discarded
+        guard column == .done else { return .cardIsNotDone }
+        guard !isArchived(visits, at: now) else { return .cardIsArchived }
+        guard let id = card.value(forKey: "id") as? UUID, !SampleCards.isSample(id) else { return .sampleCardCantBeArchived }
+        return nil
     }
 
     /// The Archive Delays the user can choose, in days (spec 0003). Not a rule:
@@ -267,7 +311,26 @@ public final class Board {
     /// Column history, or its archiving, has a newer event; Edited and Triaged events don't count), after
     /// `undoWindow`, when it would put Doing over the WIP Limit, or when undoing an
     /// archive wouldn't bring the Card back because the Archive Delay is up by now.
+    /// A Change with others `alongside` (Archive All) is undone for all of its Cards
+    /// or none, except that a Card past the Archive Delay by now stays archived
+    /// while the others come back; refused only if none can.
     public func revert(_ change: Change) throws {
+        var undos: [() -> Void] = []
+        for part in [change] + change.alongside {
+            do {
+                undos.append(try undo(part))
+            } catch BoardError.archiveDelayIsUp where !change.alongside.isEmpty {
+                continue
+            }
+        }
+        guard !undos.isEmpty else { throw BoardError.archiveDelayIsUp }
+        try self.change {
+            for undo in undos { undo() }
+        }
+    }
+
+    /// Checks that `change` can still be undone, and returns what undoes it.
+    private func undo(_ change: Change) throws -> () -> Void {
         let card = try anyCard(change.cardID)
         let history = Self.history(of: card)
         let placing = history.filter {
@@ -287,7 +350,7 @@ public final class Board {
         if restored == .doing, Self.column(of: card) != .doing, try wipStatus().count >= wipLimit {
             throw BoardError.wipLimitReached(limit: wipLimit)
         }
-        try self.change {
+        return { [context] in
             if change.isCreation {
                 context.delete(card)  // a Card's events go with it
             } else {

@@ -43,6 +43,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             view.onOpen = { [weak self] card in self?.open(card) }
             view.onDiscard = { [weak self] card in self?.discard(card) }
             view.onArchive = { [weak self] card in self?.archive(card) }
+            view.onArchiveAll = { [weak self] in self?.archiveAllDoneCards(nil) }
         }
         view = columns
         reload()
@@ -186,6 +187,11 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     /// Sends a Done Card to the Archive before the Archive Delay is up (ADR 0007).
     private func archive(_ id: UUID) {
         takeOffBoard("Archive") { [board] in try board.archiveCard(id) }
+    }
+
+    /// Clears Done in one go, without asking: one ⌘Z brings every Card back.
+    @objc func archiveAllDoneCards(_ sender: Any?) {
+        takeOffBoard("Archive All") { [board] in try board.archiveAllDoneCards() }
     }
 
     /// Discard or Archive, from ⌘⌫ or a context menu; never while a sheet is open,
@@ -404,8 +410,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             do {
                 try controller.undoably(actionName, redo)
                 controller.reload()
-            } catch BoardError.cardIsArchived {
-                controller.reload()  // redoing an archive after the Archive Delay took the Card anyway
+            } catch BoardError.cardIsArchived, BoardError.nothingToArchive {
+                controller.reload()  // redoing an archive after the Archive Delay took the Card(s) anyway
             } catch {
                 controller.show(error)
             }
@@ -460,7 +466,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         }
         if isShowingSheet,
            [#selector(moveToNextColumn(_:)), #selector(moveToPreviousColumn(_:)), #selector(editCard(_:)),
-            #selector(discardOrArchiveCard(_:))].contains(menuItem.action) {
+            #selector(discardOrArchiveCard(_:)), #selector(archiveAllDoneCards(_:))].contains(menuItem.action) {
             return false
         }
         return switch menuItem.action {
@@ -469,6 +475,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         case #selector(editCard(_:)): selectedColumn != nil && !selectedIsSample
         case #selector(discardOrArchiveCard(_:)): selectedColumn == .backlog || selectedColumn == .doing
             || (selectedColumn == .done && !selectedIsSample)
+        case #selector(archiveAllDoneCards(_:)): (try? board.hasDoneCardsToArchive()) ?? false  // asks the store: Done on screen may be a minute old
         default: true
         }
     }
@@ -507,6 +514,7 @@ private final class ColumnView: NSView {
     var onOpen: ((UUID) -> Void)?
     var onDiscard: ((UUID) -> Void)?
     var onArchive: ((UUID) -> Void)?
+    var onArchiveAll: (() -> Void)?
     private let cards = NSStackView()
     private let count = NSTextField(labelWithString: "")
     private var cardIDs: [UUID] { cards.arrangedSubviews.compactMap { ($0 as? CardView)?.card.id } }
@@ -587,6 +595,7 @@ private final class ColumnView: NSView {
             view.onOpen = { [weak self] in self?.onOpen?(card.id) }
             view.onDiscard = { [weak self] in self?.onDiscard?(card.id) }
             view.onArchive = { [weak self] in self?.onArchive?(card.id) }
+            view.onArchiveAll = { [weak self] in self?.onArchiveAll?() }
             view.onMove = { [weak self] column in self?.onDrop?(card.id, column) }  // same move as a drop
             self.cards.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: self.cards.widthAnchor, constant: -24).isActive = true
@@ -687,6 +696,8 @@ private final class CardView: NSView, NSDraggingSource {
     var onDiscard: (() -> Void)?
     /// Offered only for a Done Card that isn't a Sample Card (ADR 0007).
     var onArchive: (() -> Void)?
+    /// Archive All Done Cards, offered beside Archive.
+    var onArchiveAll: (() -> Void)?
     /// Moves the Card to the Column the context menu chose.
     var onMove: ((Column) -> Void)?
     let card: Card
@@ -882,6 +893,7 @@ private final class CardView: NSView, NSDraggingSource {
         } else if column == .done, !card.isSample {
             menu.addItem(.separator())  // where an Open Card has Discard
             menu.addItem(withTitle: "Archive", action: #selector(archiveFromMenu(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Archive All Done Cards", action: #selector(archiveAllFromMenu(_:)), keyEquivalent: "").target = self
         }
         return menu.items.isEmpty ? nil : menu  // a Done Sample Card offers nothing
     }
@@ -892,6 +904,10 @@ private final class CardView: NSView, NSDraggingSource {
 
     @objc private func archiveFromMenu(_ sender: Any?) {
         onArchive?()
+    }
+
+    @objc private func archiveAllFromMenu(_ sender: Any?) {
+        onArchiveAll?()
     }
 
     @objc private func moveFromMenu(_ sender: NSMenuItem) {

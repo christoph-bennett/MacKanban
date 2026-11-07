@@ -11,4 +11,8 @@ public struct Change: Equatable, Sendable {
     let event: URL
     /// Events recorded alongside it that go with it: a Triage's Triaged event.
     var companions: [URL] = []
+    /// The other Cards' changes made in the same operation (Archive All Done Cards),
+    /// undone together with this one. Unlike `companions`, each is checked on its
+    /// own Card when undone.
+    var alongside: [Change] = []
 }

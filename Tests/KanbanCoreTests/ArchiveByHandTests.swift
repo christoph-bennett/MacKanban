@@ -149,4 +149,100 @@ struct ArchiveByHandTests {
         try board.archiveCard(id)  // what Redo does
         #expect(try board.cards(in: .done).isEmpty)
     }
+
+    // Archive All Done Cards
+
+    @Test func archiveAllTakesEveryDoneCardOffTheBoard() throws {
+        let first = try finish("First").id
+        let second = try finish("Second").id
+        let open = try board.createCard(title: "Still open", notes: "").cardID
+        let capacity = try board.capacity()
+
+        try board.archiveAllDoneCards()
+
+        #expect(try board.cards(in: .done).isEmpty)
+        #expect(Set(try board.archive().map(\.id)) == [first, second])
+        #expect(try board.cards(in: .backlog).map(\.id) == [open])
+        #expect(try board.capacity() == capacity)
+        #expect(try board.events().suffix(2).map(\.kind) == [.archived, .archived])
+    }
+
+    @Test func archiveAllLeavesSampleCards() throws {
+        try board.addSampleCards()
+        let mine = try finish("Mine").id
+        let samples = try board.cards(in: .done).filter { $0.id != mine }
+        #expect(!samples.isEmpty)
+        let eventsBefore = try board.events().count
+
+        try board.archiveAllDoneCards()
+
+        #expect(try board.cards(in: .done) == samples)
+        #expect(try board.archive().first?.id == mine)
+        #expect(try board.events().count == eventsBefore + 1)
+    }
+
+    @Test(arguments: [false, true])
+    func archiveAllIsRefusedWithNothingToArchive(withSampleCards: Bool) throws {
+        if withSampleCards { try board.addSampleCards() }
+        #expect(try !board.hasDoneCardsToArchive())
+        #expect(throws: BoardError.nothingToArchive) { try board.archiveAllDoneCards() }
+    }
+
+    @Test func oneUndoBringsBackEveryCardArchiveAllTook() throws {
+        let first = try finish("First").id
+        let second = try finish("Second").id
+        let events = try board.events()
+        let archiveAll = try board.archiveAllDoneCards()
+
+        try board.revert(archiveAll)
+
+        #expect(Set(try board.cards(in: .done).map(\.id)) == [first, second])
+        #expect(try board.archive().isEmpty)
+        #expect(try board.events() == events)
+    }
+
+    @Test func undoingArchiveAllBringsBackTheCardsStillShortOfTheDelay() throws {
+        let old = try finish("Old").id
+        clock.advance(days: 1.995)
+        let recent = try finish("Recent").id  // a day: Old is now about 7 minutes before the 3-day delay
+        let archiveAll = try board.archiveAllDoneCards()
+        clock.advance(days: 0.007)  // 10 minutes later: Old is past the delay
+
+        try board.revert(archiveAll)
+
+        #expect(try board.cards(in: .done).map(\.id) == [recent])
+        #expect(try board.archive().map(\.id) == [old])
+    }
+
+    @Test func undoingArchiveAllIsRefusedWhenNoneOfItsCardsCanComeBack() throws {
+        let id = try finish("Shipped").id
+        clock.advance(days: 2.995)
+        let archiveAll = try board.archiveAllDoneCards()
+        clock.advance(days: 0.007)
+
+        #expect(throws: BoardError.archiveDelayIsUp) { try board.revert(archiveAll) }
+        #expect(try board.archive().map(\.id) == [id])
+    }
+
+    @Test func archiveAllNamesTheNewestDoneCardFirst() throws {
+        _ = try finish("Older")
+        let newest = try finish("Newest").id
+        #expect(try board.archiveAllDoneCards().cardID == newest)
+    }
+
+    @Test func whetherThereIsSomethingToArchiveFollowsTheArchiveDelay() throws {
+        #expect(try !board.hasDoneCardsToArchive())
+        _ = try finish("Shipped")
+        #expect(try board.hasDoneCardsToArchive())
+        clock.advance(days: 3)  // the delay took it
+        #expect(try !board.hasDoneCardsToArchive())
+    }
+
+    @Test func archiveAllCanBeDoneAgainAfterAnUndo() throws {
+        _ = try finish("Shipped")
+        try board.revert(try board.archiveAllDoneCards())
+
+        try board.archiveAllDoneCards()  // what Redo does
+        #expect(try board.cards(in: .done).isEmpty)
+    }
 }
