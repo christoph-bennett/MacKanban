@@ -133,6 +133,44 @@ struct ArchiveTests {
         #expect(try board.archive().discarded.isEmpty)
     }
 
+    @Test func anArchivedDoneCardSaysUntilWhenItCountsAsThroughput() throws {
+        try board.changeArchiveDelay(to: 3)
+        let byDelay = try finish("By delay")
+        let finished = clock.now
+        let byHand = try finish("By hand")
+        let handFinished = clock.now
+        try board.archiveCard(byHand)
+        clock.advance(days: 3)  // By delay: 4 days in Done, past the 3-day delay
+
+        let done = try board.archive().done
+        #expect(done.map(\.id) == [byHand, byDelay])  // both archived, one each way
+        #expect(done.allSatisfy { $0.isCounting })
+        #expect(done[1].countsUntil == finished.addingTimeInterval(14 * 86_400))
+        #expect(done[0].countsUntil == handFinished.addingTimeInterval(14 * 86_400))
+    }
+
+    @Test func throughputCountsAnArchivedCardExactlyUntilItsCountsUntil() throws {
+        _ = try finish("Shipped")
+        clock.advance(days: 3)
+        let until = try #require(try board.archive().done.first?.countsUntil)
+
+        for (moment, counts) in [(until.addingTimeInterval(-60), true), (until, true), (until.addingTimeInterval(60), false)] {
+            clock.now = moment
+            #expect(try board.capacity().throughput == (counts ? 1 : 0))
+            let entry = try #require(try board.archive().done.first)
+            #expect(entry.isCounting == counts)  // the same rule and clock as Capacity
+            #expect(entry.countsUntil == until)  // still listed after it stops counting
+        }
+    }
+
+    @Test func discardedCardsNeverCount() throws {
+        let id = try board.createCard(title: "Dropped", notes: "").cardID
+        try board.discard(id)
+        let entry = try #require(try board.archive().discarded.first)
+        #expect(entry.countsUntil == nil)
+        #expect(!entry.isCounting)
+    }
+
     @Test func anArchivedCardStillCountsAsThroughputFor14Days() throws {
         _ = try finish("Shipped")
         clock.advance(days: 13.9)  // archived for almost a week

@@ -7,6 +7,12 @@ public struct ArchivedCard: Equatable, Identifiable, Sendable {
     public let created: Date
     /// When it entered Done or was Discarded.
     public let ended: Date
+    /// A Done Card: until when it counts toward Throughput, 14 days after it
+    /// entered Done (Capacity's window, ADR 0001), past or not. `nil` for a
+    /// Discarded Card, which never counts.
+    public let countsUntil: Date?
+    /// Whether Capacity counts it right now, by the same rule and clock.
+    public let isCounting: Bool
 
     public var id: UUID { card.id }
 }
@@ -20,6 +26,10 @@ public struct Archive: Equatable, Sendable {
     public let discarded: [ArchivedCard]
 
     public var isEmpty: Bool { done.isEmpty && discarded.isEmpty }
+    /// The moment the Archive was read, on the Board's clock: what `isCounting` and
+    /// the time left until `countsUntil` are measured from.
+    public let asOf: Date
+
     /// Every archived Card: Done first, then Discarded.
     public var all: [ArchivedCard] { done + discarded }
 }

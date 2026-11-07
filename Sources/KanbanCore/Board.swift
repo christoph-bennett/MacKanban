@@ -510,13 +510,12 @@ public final class Board {
         let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
         request.relationshipKeyPathsForPrefetching = ["events"]
         let now = now()
-        let throughputSince = now.addingTimeInterval(-Capacity.throughputWindow)
         var throughput = 0
         let placed = try context.fetch(request).compactMap { object -> (card: Card, column: Column, key: TimeInterval)? in
             let visits = Self.visits(of: object)
             // From the history, not from what's on the Board: archived Done Cards
             // still count, and Discarded Cards never entered Done.
-            if visits.contains(where: { $0.column == .done && $0.entered >= throughputSince }) { throughput += 1 }
+            if Self.isCounting(visits, at: now) { throughput += 1 }
             guard let column = Self.column(after: visits) else { return nil }  // Discarded
             if isArchived(visits, at: now) { return nil }
             let created = visits.first?.entered ?? now
@@ -614,12 +613,13 @@ public final class Board {
                   let card = Self.card(object, in: .done, age: nil)  // read-only, no Urgency
             else { continue }
             if let left = last.left {
-                discarded.append(ArchivedCard(card: card, created: created, ended: left))
+                discarded.append(ArchivedCard(card: card, created: created, ended: left, countsUntil: nil, isCounting: false))
             } else if isArchived(visits, at: now) {
-                done.append(ArchivedCard(card: card, created: created, ended: last.entered))
+                done.append(ArchivedCard(card: card, created: created, ended: last.entered,
+                                         countsUntil: Self.countsUntil(visits), isCounting: Self.isCounting(visits, at: now)))
             }
         }
-        return Archive(done: done.sorted { $0.ended > $1.ended }, discarded: discarded.sorted { $0.ended > $1.ended })
+        return Archive(done: done.sorted { $0.ended > $1.ended }, discarded: discarded.sorted { $0.ended > $1.ended }, asOf: now)
     }
 
     /// The whole event log, oldest first.
@@ -648,6 +648,17 @@ public final class Board {
         return events.sorted {
             ($0.value(forKey: "timestamp") as? Date ?? .distantPast) < ($1.value(forKey: "timestamp") as? Date ?? .distantPast)
         }
+    }
+
+    /// Until when a Card counts toward Throughput: `throughputWindow` after it
+    /// entered Done (ADR 0001); `nil` if it never did (Discarded Cards never count).
+    private static func countsUntil(_ visits: [ColumnVisit]) -> Date? {
+        visits.last { $0.column == .done }.map { $0.entered.addingTimeInterval(Capacity.throughputWindow) }
+    }
+
+    /// The Throughput rule, for Capacity and the Archive's Counts column alike.
+    private static func isCounting(_ visits: [ColumnVisit], at now: Date) -> Bool {
+        countsUntil(visits).map { $0 >= now } ?? false
     }
 
     /// Whether the Card is a Done Card that has left the Board for the Archive: sent

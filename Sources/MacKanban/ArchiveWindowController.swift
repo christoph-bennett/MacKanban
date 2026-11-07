@@ -13,8 +13,8 @@ final class ArchiveWindowController: NSWindowController {
         let window = NSWindow(contentViewController: archive)
         window.title = "Archive"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 640, height: 420))
-        window.minSize = NSSize(width: 420, height: 240)
+        window.setContentSize(NSSize(width: 780, height: 420))
+        window.minSize = NSSize(width: 600, height: 240)  // room for the fixed columns and some of the title
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.setFrameAutosaveName("Archive")
@@ -64,6 +64,8 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
     }
 
     private var rows: [Row] = []
+    /// When the Archive shown was read, on the Board's clock: the Counts bars measure from it.
+    private var asOf = Date()
     private let table = ArchiveTableView()
     private let emptyLabel = NSTextField(labelWithString: "Nothing in the Archive yet.")
     private var refreshTimer: Timer?
@@ -75,6 +77,7 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         static let title = NSUserInterfaceItemIdentifier("title")
         static let created = NSUserInterfaceItemIdentifier("created")
         static let ended = NSUserInterfaceItemIdentifier("ended")
+        static let counts = NSUserInterfaceItemIdentifier("counts")
     }
 
     init(board: Board) {
@@ -88,14 +91,18 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
     override func loadView() {
         // No Outcome column: the section says it (spec 0003). Ended is when the Card
         // was finished or Discarded, as its section heading says.
-        for (id, title, width) in [(ColumnID.title, "Card", 240.0), (ColumnID.created, "Created", 110),
-                                   (ColumnID.ended, "Ended", 150)] {
+        // Counts: how much longer an archived Done Card props up Capacity (spec 0003).
+        for (id, title, width) in [(ColumnID.title, "Card", 200.0), (ColumnID.created, "Created", 110),
+                                   (ColumnID.ended, "Ended", 160), (ColumnID.counts, "Counts", 140)] {
             let column = NSTableColumn(identifier: id)
             column.title = title
             column.width = width
-            column.minWidth = 60
+            column.minWidth = id == ColumnID.counts ? 140 : 60  // the bar and "until Nov 10" stay whole
+            column.resizingMask = id == ColumnID.title ? .autoresizingMask : .userResizingMask
             table.addTableColumn(column)
         }
+        // A narrower window (its size is remembered) takes the room from the Card's title.
+        table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
         table.usesAlternatingRowBackgroundColors = true
         table.style = .inset
         table.allowsMultipleSelection = false
@@ -153,6 +160,7 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         let selected = selectedCard?.id
         do {
             let archive = try board.archive()
+            asOf = archive.asOf
             rows = Section.allCases.flatMap { section -> [Row] in
                 let cards = section == .done ? archive.done : archive.discarded
                 guard !cards.isEmpty else { return [] }  // an empty section isn't shown
@@ -204,6 +212,13 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
             return cell
         }
         guard let id = tableColumn?.identifier else { return nil }
+        // A Done Card past its 14 days no longer props up Capacity: its whole row fades.
+        let expired = archived.countsUntil != nil && !archived.isCounting
+        if id == ColumnID.counts {
+            let cell = tableView.makeView(withIdentifier: id, owner: self) as? CountsCellView ?? CountsCellView(identifier: id)
+            cell.show(archived, asOf: asOf)
+            return cell
+        }
         let text = switch id {
         case ColumnID.title: archived.card.title
         case ColumnID.created: archived.created.formatted(date: .abbreviated, time: .omitted)
@@ -212,7 +227,11 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         let cell = tableView.makeView(withIdentifier: id, owner: self) as? NSTableCellView ?? Self.cell(id)
         guard let field = cell.textField else { return cell }
         field.stringValue = text
-        field.textColor = id == ColumnID.title ? .labelColor : .secondaryLabelColor
+        field.textColor = switch (id == ColumnID.title, expired) {
+        case (true, false): .labelColor
+        case (true, true), (false, false): .secondaryLabelColor
+        case (false, true): .tertiaryLabelColor
+        }
         if id == ColumnID.created || id == ColumnID.ended {
             field.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
@@ -269,5 +288,57 @@ private final class ArchiveTableView: NSTableView {
         } else {
             super.keyDown(with: event)
         }
+    }
+}
+
+/// The Counts cell of an archived Done Card (spec 0003): a bar that drains from
+/// full on the day the Card was finished to empty 14 days later, and "until Nov 10";
+/// "no longer" once that's past. Empty for a Discarded Card, which never counts.
+private final class CountsCellView: NSTableCellView {
+    private let bar = NSLevelIndicator()
+    private let label = NSTextField(labelWithString: "")
+    private static let window = Capacity.throughputWindow
+
+    init(identifier: NSUserInterfaceItemIdentifier) {
+        super.init(frame: .zero)
+        self.identifier = identifier
+        bar.levelIndicatorStyle = .continuousCapacity
+        bar.minValue = 0
+        bar.maxValue = Self.window
+        bar.setAccessibilityElement(false)  // the label says it
+        label.textColor = .secondaryLabelColor
+        label.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        label.lineBreakMode = .byTruncatingTail
+        textField = label  // the selected row's text colours
+        let stack = NSStackView(views: [bar, label])
+        stack.spacing = 6
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            bar.widthAnchor.constraint(equalToConstant: 36),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -2),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Whether it counts comes from the Board (Capacity's rule and clock); the bar
+    /// only shows how much of the 14 days is left at `asOf`.
+    func show(_ archived: ArchivedCard, asOf: Date) {
+        guard let countsUntil = archived.countsUntil else {
+            bar.isHidden = true
+            label.stringValue = ""
+            label.setAccessibilityLabel(nil)
+            return
+        }
+        let date = countsUntil.formatted(.dateTime.month(.abbreviated).day())
+        bar.isHidden = !archived.isCounting
+        bar.doubleValue = min(max(countsUntil.timeIntervalSince(asOf), 0), Self.window)
+        label.stringValue = archived.isCounting ? "until \(date)" : "no longer"
+        label.textColor = archived.isCounting ? .secondaryLabelColor : .tertiaryLabelColor
+        label.setAccessibilityLabel(archived.isCounting ? "Counts toward Throughput until \(date)" : "No longer counts toward Throughput")
     }
 }
