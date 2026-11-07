@@ -22,3 +22,4 @@
 - Spec 0001 story 20: a dated note. GLOSSARY unchanged (Column Age already covers Done).
 - Review (medium) fixes: two doc comments that still said "none in Done"; Done's Urgency pinned explicitly; the Done time computed once; the spec note.
 - Checked by screenshot on a sample store: Done shows "2h in Done" and "1d in Done" with no tint; VoiceOver reads "Finished chore 29, 2h in Done"; the Capacity gauge unchanged at "8 of 13".
+- Checked by hand by Christoph on 2026-11-07.

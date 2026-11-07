@@ -27,4 +27,4 @@ The edit sheet (Backlog and Doing) doesn't change. Sample Cards still don't open
 - VoiceOver (checked through System Events): heading, status line, title and notes are static text, then Close; the symbol is hidden from VoiceOver, since the text says the same.
 - Review fixes: Esc closes the read-only sheet even while the title or notes have focus (a key equivalent on the sheet, as the edit sheet's Cancel button has; checked with the notes focused); the Board passes the Done date explicitly and asserts it's there; one status-line switch instead of several.
 - Checked by screenshot on a sample store, light and dark: a Done Card from the Board with long and with no notes, an archived Done Card, a Discarded Card, the edit sheet unchanged. Screenshots taken through temporary launch hooks (not committed) because a full-screen video covered the screen.
-- Christoph's hand check still to come.
+- Checked by hand by Christoph on 2026-11-07.

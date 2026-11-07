@@ -20,3 +20,4 @@
 - Review (medium) fixes: partial undo instead of all-or-nothing when a Card passed the delay; quiet Redo for `nothingToArchive`; the menu asks the store, not the Cards on screen; one shared rule for Archive and Archive All; the fetch prefetches events; a fixed order (newest first) for the returned Change; the duplicated `shownCards` helper went away with the menu change.
 - Checked on a sample store with a TEMP hook (since removed): the Card menu reads "Move to Next Column, Move to Previous Column, ---, Edit Card…, Discard Card, Archive All Done Cards"; a Done Card's context menu "Open, ---, Archive, Archive All Done Cards"; Archive All emptied Done (2 Cards), the item turned off, and one Undo brought both back.
 - 2026-11-07, with real input on a sample store: Card > Archive All Done Cards archived the Done Card left, then the item was disabled; the Edit menu read "Undo Archive All"; one ⌘Z brought it back.
+- Checked by hand by Christoph on 2026-11-07.
