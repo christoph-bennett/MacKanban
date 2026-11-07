@@ -1,10 +1,10 @@
-# 22: Option to hide MacKanban from the Dock
+# 03: Option to hide MacKanban from the Dock
 
-**What to build:** Asked for by Christoph on 2026-11-07. Settings > General gets a row after Startup: "Dock:" with a checkbox "Show MacKanban in the Dock" and the note "When off, MacKanban runs from the menu bar and its hotkeys, and isn't in the Dock or the app switcher." On by default, so nothing changes until it's switched off. Switched off, the Dock icon goes at once, without relaunching, and MacKanban leaves the app switcher (⌘Tab); switched on, it comes back at once. The menu bar extra, both hotkeys and every window (Board, Archive, Settings) keep working. The choice survives relaunching; a sample store has its own, as with the WIP Limit.
+**What to build:** Spec 0004, stories 15–26. Settings > General gets a row after Startup: "Dock:" with a checkbox "Show MacKanban in the Dock" and the note "When off, MacKanban runs from the menu bar and its hotkeys, and isn't in the Dock or the app switcher." On by default, so nothing changes until it's switched off. Switched off, the Dock icon goes at once, without relaunching, and MacKanban leaves the app switcher (⌘Tab); switched on, it comes back at once. The menu bar extra, both hotkeys and every window (Board, Archive, Settings) keep working. The choice survives relaunching; a sample store has its own, as with the WIP Limit.
 
 Without the Dock icon macOS doesn't show MacKanban's own menu bar. Whether the key equivalents still work then (⌘N, ⌘Z and ⇧⌘Z, ⌘⌫, ⌘→ and ⌘←, ⌘⇧A, ⌘0, ⌘,, ⌘W, ⌘Q, and Esc) is checked here; if some don't, tell Christoph what fails and agree a fix before changing anything about it.
 
-**Blocked by:** 20 (Settings gets a "Board" tab), 21 (Open Archive from the menu bar extra)
+**Blocked by:** 01 (Settings gets a "Board" tab), 02 (Open Archive from the menu bar extra)
 
 **Status:** ready-for-agent
 
