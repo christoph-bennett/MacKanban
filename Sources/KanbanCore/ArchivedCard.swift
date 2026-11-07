@@ -1,6 +1,6 @@
 import Foundation
 
-/// A Card in the Archive: a Done Card past `Board.archiveDelay`, or a Discarded
+/// A Card in the Archive: a Done Card past the Archive Delay, or a Discarded
 /// Card. Read-only.
 public struct ArchivedCard: Equatable, Identifiable, Sendable {
     public enum Outcome: Sendable {

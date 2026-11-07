@@ -47,6 +47,7 @@ public enum BoardError: LocalizedError, Equatable {
     case moveNotAllowed(from: Column, to: Column)
     case wipLimitReached(limit: Int)
     case wipLimitOutOfRange
+    case archiveDelayNotOffered
     case cardIsDone
     case sampleCardIsReadOnly
     case sampleCardsNeedEmptyBoard
@@ -72,6 +73,8 @@ public enum BoardError: LocalizedError, Equatable {
                 + (cardsToFree == 1 ? "Card." : "Cards.")
         case .cannotUndo: "This can't be undone any more: the Card has changed since."
         case .wipLimitOutOfRange: "The WIP Limit is between \(Board.wipLimits.lowerBound) and \(Board.wipLimits.upperBound)."
+        case .archiveDelayNotOffered:
+            "The Archive Delay is one of " + Board.archiveDelays.map(String.init).joined(separator: ", ") + " days."
         }
     }
 }
@@ -85,12 +88,19 @@ public final class Board {
     private let now: () -> Date
     /// The most Cards Doing may hold. Kept by the app, which passes it in (spec 0001).
     public private(set) var wipLimit: Int
+    /// How many days a Done Card stays on the Board before it goes to the Archive
+    /// on its own. Kept by the app, which passes it in (spec 0003).
+    public private(set) var archiveDelay: Int
 
     /// - Parameters:
     ///   - storeURL: the SQLite file, or `nil` for a store that lives only in memory.
     ///   - wipLimit: the stored WIP Limit; one outside `wipLimits` becomes the default.
-    public init(storeURL: URL?, now: @escaping () -> Date = Date.init, wipLimit: Int = Board.defaultWIPLimit) throws {
+    ///   - archiveDelay: the stored Archive Delay in days; one not in `archiveDelays`
+    ///     becomes the default.
+    public init(storeURL: URL?, now: @escaping () -> Date = Date.init, wipLimit: Int = Board.defaultWIPLimit,
+                archiveDelay: Int = Board.defaultArchiveDelay) throws {
         self.wipLimit = Self.wipLimits.contains(wipLimit) ? wipLimit : Self.defaultWIPLimit
+        self.archiveDelay = Self.archiveDelays.contains(archiveDelay) ? archiveDelay : Self.defaultArchiveDelay
         if let storeURL {
             try FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         }
@@ -212,9 +222,18 @@ public final class Board {
         return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
     }
 
-    /// How long a Card stays in Done before it leaves the Board for the Archive.
-    /// Never recorded: it follows from the Moved-to-Done event (ADR 0002).
-    public nonisolated static let archiveDelay: TimeInterval = 7 * 86_400
+    /// The Archive Delays the user can choose, in days (spec 0003). Not a rule:
+    /// Throughput counts Done Cards wherever they are (ADR 0007).
+    public nonisolated static let archiveDelays = [1, 2, 3, 5, 7]
+    public nonisolated static let defaultArchiveDelay = 3
+
+    /// Sets the Archive Delay. It applies at once to every Done Card, since leaving
+    /// the Board is computed, never recorded (ADR 0002); and the change itself
+    /// writes no event either (ADR 0007).
+    public func changeArchiveDelay(to days: Int) throws {
+        guard Self.archiveDelays.contains(days) else { throw BoardError.archiveDelayNotOffered }
+        archiveDelay = days
+    }
 
     /// How long after an operation it can still be undone. Undo is for slips
     /// straight after they happen, not for rewriting history (ADR 0002).
@@ -408,7 +427,7 @@ public final class Board {
             // still count, and Discarded Cards never entered Done.
             if visits.contains(where: { $0.column == .done && $0.entered >= throughputSince }) { throughput += 1 }
             guard let column = Self.column(after: visits) else { return nil }  // Discarded
-            if Self.isArchived(visits, at: now) { return nil }
+            if isArchived(visits, at: now) { return nil }
             let created = visits.first?.entered ?? now
             let timeInDoing = visits.timeSpent(in: .doing, until: now)
             // The age the Card's label shows, and the ascending sort key for its Column.
@@ -504,7 +523,7 @@ public final class Board {
             if let discarded = last.left {
                 return ArchivedCard(card: card, created: created, ended: discarded, outcome: .discarded)
             }
-            guard Self.isArchived(visits, at: now) else { return nil }
+            guard isArchived(visits, at: now) else { return nil }
             return ArchivedCard(card: card, created: created, ended: last.entered, outcome: .done)
         }
         .sorted { $0.ended > $1.ended }
@@ -539,10 +558,10 @@ public final class Board {
     }
 
     /// Whether the Card is a Done Card that has left the Board for the Archive:
-    /// `archiveDelay` after entering Done, never recorded (ADR 0002).
-    private static func isArchived(_ visits: [ColumnVisit], at now: Date) -> Bool {
+    /// `archiveDelay` days after entering Done, never recorded (ADR 0002).
+    private func isArchived(_ visits: [ColumnVisit], at now: Date) -> Bool {
         guard let last = visits.last, last.column == .done, last.left == nil else { return false }
-        return now.timeIntervalSince(last.entered) >= archiveDelay
+        return now.timeIntervalSince(last.entered) >= TimeInterval(archiveDelay) * 86_400
     }
 
     /// Where the Card is now, or `nil` once it's Discarded.

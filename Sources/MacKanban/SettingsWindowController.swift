@@ -3,8 +3,8 @@ import KanbanCore
 import KeyboardShortcuts
 
 /// Settings, in two tabs switched from the toolbar as in MacJot (spec 0002).
-/// General: the WIP Limit, the only rule the user can change (ADR 0001), the age
-/// labels on Cards, and Launch at login. Shortcuts: the show-Board hotkey.
+/// General: the WIP Limit, the only rule the user can change (ADR 0001), the
+/// Archive Delay (spec 0003), the age labels on Cards, and Launch at login. Shortcuts: the show-Board hotkey.
 /// AppKit rather than SwiftUI: a WIP Limit change has to go through the Board,
 /// which records it as a Board Event.
 @MainActor
@@ -21,12 +21,14 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     }
 
     static let wipLimitKey = "wipLimit"
+    static let archiveDelayKey = "archiveDelay"
     /// Here rather than in a View menu, where people would look for it (decided
     /// 2026-10-24, overriding HIG audit finding 5).
     static let showsAgesKey = "showsAges"
 
-    /// After the WIP Limit changed, so the Board window can update Doing's header.
-    var onWIPLimitChange: (() -> Void)?
+    /// After a setting the Board computes with changed (the WIP Limit, the Archive
+    /// Delay), so the Board window, and through it the Archive, show the result at once.
+    var onBoardSettingChange: (() -> Void)?
     /// After the age labels were switched on or off.
     var onShowsAgesChange: ((Bool) -> Void)?
 
@@ -35,11 +37,13 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     private let offersLaunchAtLogin: Bool
     private let registersHotkey: Bool
     private let wipLimit = NSPopUpButton()
+    private let archiveDelay = NSPopUpButton()
     private let showsAges = NSButton(checkboxWithTitle: "Show ages on Cards", target: nil, action: nil)
     private let launchAtLogin = NSButton(checkboxWithTitle: "Open MacKanban at login", target: nil, action: nil)
     private let approvalNote = NSTextField(wrappingLabelWithString: "")
     private var grid: NSGridView!
-    private static let approvalRow = 5
+    /// Shown only while Launch at login needs approval.
+    private var approvalRow: NSGridRow!
     private var panes: [Pane: NSView] = [:]
     private var current: Pane?
     private let hotkeyNote = NSTextField(wrappingLabelWithString: "")
@@ -81,10 +85,21 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         // names the window for VoiceOver and Mission Control.
         window.titleVisibility = .hidden
 
-        wipLimit.addItems(withTitles: Board.wipLimits.map(String.init))
+        for limit in Board.wipLimits {
+            wipLimit.addItem(withTitle: String(limit))
+            wipLimit.lastItem?.tag = limit
+        }
         wipLimit.target = self
         wipLimit.action = #selector(wipLimitChanged(_:))
         let wipNote = Self.note("The most Cards Doing can hold. Starting another Card is refused until one leaves Doing.")
+
+        for days in Board.archiveDelays {
+            archiveDelay.addItem(withTitle: days == 1 ? "1 day" : "\(days) days")
+            archiveDelay.lastItem?.tag = days
+        }
+        archiveDelay.target = self
+        archiveDelay.action = #selector(archiveDelayChanged(_:))
+        let archiveNote = Self.note("How long Done Cards stay on the Board before they go to the Archive. Archiving early doesn't change Throughput.")
 
         showsAges.target = self
         showsAges.action = #selector(showsAgesChanged(_:))
@@ -103,6 +118,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         grid = NSGridView(views: [
             [NSTextField(labelWithString: "WIP Limit:"), wipLimit],
             [NSGridCell.emptyContentView, wipNote],
+            [NSTextField(labelWithString: "Archive Delay:"), archiveDelay],
+            [NSGridCell.emptyContentView, archiveNote],
             [NSTextField(labelWithString: "Cards:"), showsAges],
             [NSGridCell.emptyContentView, agesNote],
             [NSTextField(labelWithString: "Startup:"), launchAtLogin],
@@ -114,12 +131,12 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         // its control, 16 pt between settings.
         grid.rowSpacing = 4
         grid.columnSpacing = 8
-        grid.row(at: 1).bottomPadding = 12
-        grid.row(at: 3).bottomPadding = 12
+        for note in [wipNote, archiveNote, agesNote] { grid.cell(for: note)?.row?.bottomPadding = 12 }
+        approvalRow = grid.cell(for: approval)?.row
         grid.translatesAutoresizingMaskIntoConstraints = false
         // A fixed width: with only a preferred one, the grid squeezed the notes
         // narrower than they were measured for and cut them off.
-        for note in [wipNote, agesNote, approvalNote] {
+        for note in [wipNote, archiveNote, agesNote, approvalNote] {
             note.preferredMaxLayoutWidth = 300
             note.widthAnchor.constraint(equalToConstant: 300).isActive = true
         }
@@ -279,23 +296,35 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
 
     /// Reads the settings again: Launch at login can change in System Settings.
     private func refresh() {
-        wipLimit.selectItem(withTitle: String(board.wipLimit))
+        wipLimit.selectItem(withTag: board.wipLimit)
+        archiveDelay.selectItem(withTag: board.archiveDelay)
         showsAges.state = defaults.bool(forKey: Self.showsAgesKey) ? .on : .off
         let state = LaunchAtLogin.state
         // Shown as on while it needs approval: it's still registered, and
         // switching it off here unregisters it.
         launchAtLogin.state = state == .on || state == .needsApproval ? .on : .off
         launchAtLogin.isEnabled = offersLaunchAtLogin && state != .unavailable
-        grid.row(at: Self.approvalRow).isHidden = state != .needsApproval
+        approvalRow.isHidden = state != .needsApproval
         shortcutsGrid?.row(at: 1).isHidden = !ShowBoardHotkey.isUnavailable
     }
 
     @objc private func wipLimitChanged(_ sender: NSPopUpButton) {
-        guard let limit = sender.titleOfSelectedItem.flatMap(Int.init) else { return }
+        let limit = sender.selectedTag()
         do {
             try board.changeWIPLimit(to: limit)
             defaults.set(limit, forKey: Self.wipLimitKey)
-            onWIPLimitChange?()
+            onBoardSettingChange?()
+        } catch {
+            refresh()
+            NSAlert(error: error).beginSheetModal(for: window!)
+        }
+    }
+
+    @objc private func archiveDelayChanged(_ sender: NSPopUpButton) {
+        do {
+            try board.changeArchiveDelay(to: sender.selectedTag())
+            defaults.set(board.archiveDelay, forKey: Self.archiveDelayKey)
+            onBoardSettingChange?()
         } catch {
             refresh()
             NSAlert(error: error).beginSheetModal(for: window!)

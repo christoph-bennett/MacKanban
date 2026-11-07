@@ -12,17 +12,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // A store other than the real one gets its own settings, so trying things
-        // on a sample Board can't change the real WIP Limit.
+        // on a sample Board can't change the real WIP Limit or Archive Delay.
         let isRealStore = Self.storeOverride == nil
         let defaults = isRealStore ? UserDefaults.standard : UserDefaults(suiteName: "com.onethingwell.mackanban.sample")!
         defaults.register(defaults: [SettingsWindowController.wipLimitKey: Board.defaultWIPLimit,
+                                     SettingsWindowController.archiveDelayKey: Board.defaultArchiveDelay,
                                      SettingsWindowController.showsAgesKey: true])
         do {
-            let model = try Board(storeURL: Self.storeURL, wipLimit: defaults.integer(forKey: SettingsWindowController.wipLimitKey))
+            let model = try Board(storeURL: Self.storeURL, wipLimit: defaults.integer(forKey: SettingsWindowController.wipLimitKey),
+                                  archiveDelay: defaults.integer(forKey: SettingsWindowController.archiveDelayKey))
             let board = BoardWindowController(board: model)
             let settings = SettingsWindowController(board: model, defaults: defaults, offersLaunchAtLogin: isRealStore,
                                                      registersHotkey: isRealStore)
-            settings.onWIPLimitChange = { [weak board] in board?.reload() }
+            settings.onBoardSettingChange = { [weak board] in board?.reload() }  // its state change reloads the Archive too
             board.showsAges = defaults.bool(forKey: SettingsWindowController.showsAgesKey)
             settings.onShowsAgesChange = { [weak board] in board?.showsAges = $0 }
             let statusItem = StatusItemController(board: model)
