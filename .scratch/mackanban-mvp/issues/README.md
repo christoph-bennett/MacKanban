@@ -23,3 +23,6 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 17 | [Global hotkey for a New Card](17-new-card-hotkey.md) | none | done |
 | 18 | [Esc closes Settings](18-esc-closes-settings.md) | none | done |
 | 19 | [A read-only Card looks read-only](19-read-only-card-sheet-looks-read-only.md) | none | done |
+| 20 | [Settings gets a "Board" tab](20-settings-board-tab.md) | none | ready-for-agent |
+| 21 | [Open Archive from the menu bar extra](21-archive-in-menu-bar-extra.md) | none | ready-for-agent |
+| 22 | [Option to hide MacKanban from the Dock](22-hide-dock-icon.md) | 20, 21 | ready-for-agent |

@@ -113,3 +113,4 @@ Unchanged
 
 - Spec 0001's stories 15 and 16 and its Defaults line are superseded by this spec (add a dated note there when implementing).
 - After the update, the default of 3 days will take his Done Cards older than 3 days off the Board straight away. That's intended.
+- 2026-11-07: the Archive Delay moves from Settings > General to a new Board tab, beside the WIP Limit (MVP ticket 20). The menu bar extra gets Open Archive (MVP ticket 21).
