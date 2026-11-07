@@ -325,13 +325,17 @@ private final class CountsCellView: NSTableCellView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    /// The bar's hover text: how many days the Card still counts, in plain words.
-    private static func timeLeft(_ left: TimeInterval) -> String {
-        let days = Int(left / 86_400)
-        return switch days {
-        case 0: "Counts for less than a day more"
-        case 1: "Counts for 1 more day"
-        default: "Counts for \(days) more days"
+    /// The bar's hover text: how long the Card still counts, in plain words, to the
+    /// hour, so two bars of different length never say the same (asked for 2026-11-07).
+    static func timeLeft(_ left: TimeInterval) -> String {
+        let hours = Int(left / 3_600)
+        let (days, rest) = (hours / 24, hours % 24)
+        func count(_ n: Int, _ unit: String) -> String { n == 1 ? "1 \(unit)" : "\(n) \(unit)s" }
+        return switch (days, rest) {
+        case (0, 0): "Counts for less than an hour more"
+        case (0, _): "Counts for another \(count(rest, "hour"))"
+        case (_, 0): "Counts for another \(count(days, "day"))"
+        default: "Counts for another \(count(days, "day")) and \(count(rest, "hour"))"
         }
     }
 
