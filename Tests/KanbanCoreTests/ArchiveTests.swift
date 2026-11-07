@@ -51,6 +51,28 @@ struct ArchiveTests {
         #expect(card.urgency == 0)
     }
 
+    /// What the read-only sheet's "Done on <date>" shows (MVP ticket 19).
+    @Test func aDoneCardOnTheBoardKnowsWhenItEnteredDone() throws {
+        let id = try board.createCard(title: "Shipped", notes: "").cardID
+        clock.advance(days: 1)
+        try board.move(id, to: .doing)
+        let doneAt = clock.now.addingTimeInterval(2 * 86_400)
+        clock.advance(days: 2)
+        try board.move(id, to: .done)
+        clock.advance(days: 1.5)
+
+        let card = try #require(try board.cards(in: .done).first)
+        #expect(abs(try #require(card.doneSince).timeIntervalSince(doneAt)) < 1)
+        #expect(try board.cards(in: .doing).isEmpty)
+    }
+
+    @Test func aCardOutsideDoneHasNoDoneDate() throws {
+        let id = try board.createCard(title: "Open", notes: "").cardID
+        #expect(try board.cards(in: .backlog).first?.doneSince == nil)
+        try board.move(id, to: .doing)
+        #expect(try board.cards(in: .doing).first?.doneSince == nil)
+    }
+
     @Test func aDoneCardLeavesTheBoardOnceTheChosenArchiveDelayIsUp() throws {
         let board = try Board(storeURL: nil, now: { [clock] in clock.now }, archiveDelay: 7)
         let id = try finish("Shipped", on: board)

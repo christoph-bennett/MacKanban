@@ -11,6 +11,10 @@ public struct Card: Equatable, Identifiable, Sendable {
     /// What the Card's age label shows: Card Age in Backlog, Column Age in Doing and
     /// in Done (archive ticket 06); `nil` for a Card read from the Archive.
     public let age: TimeInterval?
+    /// When it entered Done, for a Card in Done on the Board: what its read-only
+    /// sheet says (MVP ticket 19). `nil` elsewhere, also for one read from the
+    /// Archive, whose `ArchivedCard.ended` says it.
+    public let doneSince: Date?
 }
 
 /// What the Board window shows, computed together at one moment.
@@ -527,7 +531,7 @@ public final class Board {
             case .doing: (timeInDoing, -timeInDoing)
             case .done: (max(0, now.timeIntervalSince(lastEntered)), -lastEntered.timeIntervalSinceReferenceDate)  // a label only, no Urgency
             }
-            guard let card = Self.card(object, in: column, age: age) else { return nil }
+            guard let card = Self.card(object, in: column, age: age, doneSince: column == .done ? lastEntered : nil) else { return nil }
             return (card, column, key)
         }
         let columns = Dictionary(grouping: placed, by: \.column).mapValues { cards in
@@ -611,7 +615,7 @@ public final class Board {
         for object in try context.fetch(request) {
             let visits = Self.visits(of: object)
             guard let created = visits.first?.entered, let last = visits.last,
-                  let card = Self.card(object, in: .done, age: nil)  // read-only, no Urgency
+                  let card = Self.card(object, in: .done, age: nil, doneSince: nil)  // read-only, no Urgency; `ended` has the date
             else { continue }
             if let left = last.left {
                 discarded.append(ArchivedCard(card: card, created: created, ended: left, countsUntil: nil, isCounting: false))
@@ -712,12 +716,13 @@ public final class Board {
     }
 
     /// `nil` for a row without an ID, which only a damaged or half-synced store has.
-    private static func card(_ object: NSManagedObject, in column: Column, age: TimeInterval?) -> Card? {
+    private static func card(_ object: NSManagedObject, in column: Column, age: TimeInterval?, doneSince: Date?) -> Card? {
         guard let id = object.value(forKey: "id") as? UUID else { return nil }
         return Card(id: id,
                     title: object.value(forKey: "title") as? String ?? "",
                     notes: object.value(forKey: "notes") as? String ?? "",
                     urgency: column == .done ? 0 : age.map { Urgency.of(age: $0, in: column) } ?? 0,  // never in Done (ADR 0001)
-                    age: age)
+                    age: age,
+                    doneSince: doneSince)
     }
 }

@@ -274,7 +274,10 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
     /// Read-only: "Done Card" or "Discarded Card", by the section it's in.
     private func open(_ row: Row) {
         guard case let .card(archived, section) = row, presentedViewControllers?.isEmpty ?? true else { return }
-        presentAsSheet(CardSheetViewController(mode: section == .done ? .readOnly(archived.card) : .discarded(archived.card)))
+        let mode: CardSheetViewController.Mode = section == .done
+            ? .done(archived.card, on: archived.ended, archived: true)
+            : .discarded(archived.card, on: archived.ended)
+        presentAsSheet(CardSheetViewController(mode: mode))
     }
 }
 

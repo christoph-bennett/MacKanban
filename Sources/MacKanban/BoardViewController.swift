@@ -156,7 +156,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         select(id)
         guard !card.isSample else { return }
         if column == .done {
-            presentCardSheet(.readOnly(card))
+            assert(card.doneSince != nil, "a Done Card on the Board has a Done date")
+            presentCardSheet(.done(card, on: card.doneSince ?? .now, archived: false))
         } else {
             presentCardSheet(.edit(card)) { [board] title, notes in try board.edit(id, title: title, notes: notes) }
         }

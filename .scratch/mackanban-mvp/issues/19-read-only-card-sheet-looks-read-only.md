@@ -10,12 +10,21 @@ The edit sheet (Backlog and Doing) doesn't change. Sample Cards still don't open
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Read-only title and notes are labels (selectable, not editable, no bezel or background); the edit sheet keeps its fields
-- [ ] Long notes wrap and scroll within the sheet; an empty note shows nothing (or a quiet "No notes")
-- [ ] The status line shows the right wording and date for a Done Card on the Board, an archived Done Card and a Discarded Card (dates in the user's locale, as elsewhere)
-- [ ] The heading stays "Done Card" / "Discarded Card"; Close, Return and Esc close the sheet
-- [ ] VoiceOver reads the heading, the status line, the title and the notes as text, not as text fields
-- [ ] Readable in light and dark mode
-- [ ] Checked by screenshot on a sample store: a Done Card from the Board, an archived Done Card, a Discarded Card, the edit sheet unchanged; Christoph checks by hand
+- [x] Read-only title and notes are labels (selectable, not editable, no bezel or background); the edit sheet keeps its fields
+- [x] Long notes wrap and scroll within the sheet; an empty note shows nothing (or a quiet "No notes")
+- [x] The status line shows the right wording and date for a Done Card on the Board, an archived Done Card and a Discarded Card (dates in the user's locale, as elsewhere)
+- [x] The heading stays "Done Card" / "Discarded Card"; Close, Return and Esc close the sheet
+- [x] VoiceOver reads the heading, the status line, the title and the notes as text, not as text fields
+- [x] Readable in light and dark mode
+- [x] Checked by screenshot on a sample store: a Done Card from the Board, an archived Done Card, a Discarded Card, the edit sheet unchanged; Christoph checks by hand
+
+**Notes from implementing:**
+- The Board now tells a Done Card when it entered Done (two Board tests); an archived Card's date is its Archive "Ended". The sheet's modes say which line to show: Done on the Board, Done and archived, Discarded.
+- Read-only sheet: the status line (secondary colour, symbol before it), the title in bold body text and the notes as selectable body text without border or background. The notes are as tall as their text up to 240 pt, then they scroll; empty notes show a quiet "No notes". The "Title" and "Notes" labels are only on the edit sheet: in bold and in plain text, the two read for what they are.
+- Dates use the abbreviated date style, as the Archive's Created column ("5. Nov 2026" in Christoph's locale).
+- VoiceOver (checked through System Events): heading, status line, title and notes are static text, then Close; the symbol is hidden from VoiceOver, since the text says the same.
+- Review fixes: Esc closes the read-only sheet even while the title or notes have focus (a key equivalent on the sheet, as the edit sheet's Cancel button has; checked with the notes focused); the Board passes the Done date explicitly and asserts it's there; one status-line switch instead of several.
+- Checked by screenshot on a sample store, light and dark: a Done Card from the Board with long and with no notes, an archived Done Card, a Discarded Card, the edit sheet unchanged. Screenshots taken through temporary launch hooks (not committed) because a full-screen video covered the screen.
+- Christoph's hand check still to come.

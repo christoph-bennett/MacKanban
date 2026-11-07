@@ -1,18 +1,19 @@
 import AppKit
 import KanbanCore
 
-/// The Card sheet: a title (required) and optional notes, for a new Card, for
-/// editing one, or read-only for a Done Card. AppKit rather than SwiftUI:
-/// SwiftUI's `@State` is a macro whose plugin ships only with Xcode.
+/// The Card sheet: a title (required) and optional notes, for a new Card or
+/// for editing one; or, for a Done or Discarded Card, read-only, shown as text
+/// rather than fields (MVP ticket 19, after the HIG). AppKit rather than
+/// SwiftUI: SwiftUI's `@State` is a macro whose plugin ships only with Xcode.
 @MainActor
 final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
     enum Mode {
         case new
         case edit(Card)
-        /// Done Cards stay as they were finished.
-        case readOnly(Card)
+        /// Done Cards stay as they were finished: on the Board, or archived.
+        case done(Card, on: Date, archived: Bool)
         /// From the Archive: read-only too.
-        case discarded(Card)
+        case discarded(Card, on: Date)
     }
 
     /// Called with the title and notes when the user adds or saves.
@@ -34,54 +35,43 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
     private var card: Card? {
         switch mode {
         case .new: nil
-        case let .edit(card), let .readOnly(card), let .discarded(card): card
+        case let .edit(card), let .done(card, _, _), let .discarded(card, _): card
         }
     }
 
-    private var isReadOnly: Bool {
+    /// The read-only sheet's status line, which says why it can't be changed:
+    /// "Done on 4 Nov 2026", "Done on 4 Nov 2026 · Archived" or "Discarded on
+    /// 6 Nov 2026", after a symbol; the date in the user's locale, as in the Archive.
+    /// `nil` for the sheets that edit.
+    private var status: (symbol: String, text: String)? {
         switch mode {
-        case .readOnly, .discarded: true
-        case .new, .edit: false
+        case .new, .edit: nil
+        case let .done(_, date, false): ("checkmark.circle", "Done on \(Self.format(date))")
+        case let .done(_, date, true): ("archivebox", "Done on \(Self.format(date)) · Archived")
+        case let .discarded(_, date): ("xmark.circle", "Discarded on \(Self.format(date))")
         }
     }
+
+    private var isReadOnly: Bool { status != nil }
+
+    private static func format(_ date: Date) -> String {
+        date.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    /// The width of the title and notes: the sheet's 400 less its margins.
+    private static let contentWidth: CGFloat = 360
 
     override func loadView() {
         let headingText = switch mode {
         case .new: "New Card"
         case .edit: "Edit Card"
-        case .readOnly: "Done Card"
+        case .done: "Done Card"
         case .discarded: "Discarded Card"
         }
         let heading = NSTextField(labelWithString: headingText)
         heading.font = .preferredFont(forTextStyle: .headline)
 
-        // Both fields labelled the same way (HIG audit, finding 8).
-        let titleLabel = NSTextField(labelWithString: "Title")
-        titleLabel.textColor = .secondaryLabelColor
-        titleField.setAccessibilityTitleUIElement(titleLabel)  // VoiceOver: "Title"
-        titleField.stringValue = card?.title ?? ""
-        titleField.isEditable = !isReadOnly
-        titleField.delegate = self
-
-        let notesLabel = NSTextField(labelWithString: "Notes")
-        notesLabel.textColor = .secondaryLabelColor
-        notesView.setAccessibilityTitleUIElement(notesLabel)
-        notesView.font = .preferredFont(forTextStyle: .body)
-        notesView.string = card?.notes ?? ""
-        notesView.isRichText = false
-        notesView.allowsUndo = true
-        notesView.isEditable = !isReadOnly
-        notesView.onReturn = { [weak self] in self?.save(nil) }
-        notesView.textContainerInset = NSSize(width: 2, height: 4)
-        let notesScroll = NSScrollView()
-        notesScroll.documentView = notesView
-        notesScroll.hasVerticalScroller = true
-        notesScroll.borderType = .noBorder
-        let notesBox = RoundedBox(around: notesScroll)
-        notesView.autoresizingMask = [.width]
-        notesView.isVerticallyResizable = true
-        notesView.textContainer?.widthTracksTextView = true
-
+        let content = status.map(readOnlyContent) ?? editableContent()
         let buttons = NSStackView(views: [NSView()])
         buttons.orientation = .horizontal
         if isReadOnly {
@@ -100,22 +90,128 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
             buttons.addArrangedSubview(saveButton)
         }
 
-        let stack = NSStackView(views: [heading, titleLabel, titleField, notesLabel, notesBox, buttons])
+        let stack = SheetStackView(views: [heading] + content.views + [buttons])
+        // Esc as a key equivalent, as the edit sheet's Cancel button has it: it
+        // reaches the sheet even while the selectable title or notes have focus.
+        if isReadOnly { stack.onEscape = { [weak self] in self?.close() } }
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
-        stack.setCustomSpacing(4, after: titleLabel)  // a label sits with its field
-        stack.setCustomSpacing(4, after: notesLabel)
-        stack.setCustomSpacing(16, after: notesBox)
-        for view in [titleField, notesBox, buttons] {
+        for (view, spacing) in content.spacing { stack.setCustomSpacing(spacing, after: view) }
+        stack.setCustomSpacing(16, after: content.views.last!)
+        for view in content.fullWidth + [buttons] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         }
-        NSLayoutConstraint.activate([
-            stack.widthAnchor.constraint(equalToConstant: 400),
-            notesBox.heightAnchor.constraint(equalToConstant: 100),
-        ])
+        stack.widthAnchor.constraint(equalToConstant: Self.contentWidth + 40).isActive = true
         view = stack
+    }
+
+    private typealias Content = (views: [NSView], fullWidth: [NSView], spacing: [(NSView, CGFloat)])
+
+    /// The title field and the notes box, each with its label.
+    private func editableContent() -> Content {
+        // Both fields labelled the same way (HIG audit, finding 8).
+        let titleLabel = NSTextField(labelWithString: "Title")
+        titleLabel.textColor = .secondaryLabelColor
+        titleField.setAccessibilityTitleUIElement(titleLabel)  // VoiceOver: "Title"
+        titleField.stringValue = card?.title ?? ""
+        titleField.delegate = self
+
+        let notesLabel = NSTextField(labelWithString: "Notes")
+        notesLabel.textColor = .secondaryLabelColor
+        notesView.setAccessibilityTitleUIElement(notesLabel)
+        notesView.font = .preferredFont(forTextStyle: .body)
+        notesView.string = card?.notes ?? ""
+        notesView.isRichText = false
+        notesView.allowsUndo = true
+        notesView.onReturn = { [weak self] in self?.save(nil) }
+        notesView.textContainerInset = NSSize(width: 2, height: 4)
+        let notesScroll = NSScrollView()
+        notesScroll.documentView = notesView
+        notesScroll.hasVerticalScroller = true
+        notesScroll.borderType = .noBorder
+        let notesBox = RoundedBox(around: notesScroll)
+        notesView.autoresizingMask = [.width]
+        notesView.isVerticallyResizable = true
+        notesView.textContainer?.widthTracksTextView = true
+        notesBox.heightAnchor.constraint(equalToConstant: 100).isActive = true
+
+        return ([titleLabel, titleField, notesLabel, notesBox], [titleField, notesBox],
+                [(titleLabel, 4), (notesLabel, 4)])  // a label sits with its field
+    }
+
+    /// Text that can't be edited is a label, not a field (HIG): the status line
+    /// that says why, the title in bold and the notes as plain wrapping text,
+    /// both selectable so they can be copied.
+    private func readOnlyContent(_ status: (symbol: String, text: String)) -> Content {
+        let image = DecorativeImageView(image: NSImage(systemSymbolName: status.symbol, accessibilityDescription: nil) ?? NSImage())
+        image.contentTintColor = .secondaryLabelColor
+        let label = NSTextField(labelWithString: status.text)
+        label.textColor = .secondaryLabelColor
+        let statusLine = NSStackView(views: [image, label])
+        statusLine.orientation = .horizontal
+        statusLine.spacing = 4
+
+        let title = NSTextField(wrappingLabelWithString: card?.title ?? "")  // selectable
+        title.font = .boldSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize)
+        title.preferredMaxLayoutWidth = Self.contentWidth
+
+        let notesText = card?.notes ?? ""
+        let notes: NSView
+        if notesText.isEmpty {
+            let none = NSTextField(labelWithString: "No notes")
+            none.textColor = .secondaryLabelColor
+            notes = none
+        } else {
+            notes = readOnlyNotes(notesText)
+        }
+        return ([statusLine, title, notes], [title], [(statusLine, 16), (title, 8)])
+    }
+
+    /// Selectable body text without a border or background; as tall as the notes,
+    /// up to a limit past which they scroll.
+    private func readOnlyNotes(_ text: String) -> NSView {
+        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: Self.contentWidth, height: 0))
+        textView.string = text
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.textColor = .labelColor
+        textView.isRichText = false
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        // Wrapped at the sheet's width before the height is measured below.
+        textView.textContainer?.containerSize = NSSize(width: Self.contentWidth, height: .greatestFiniteMagnitude)
+        textView.textContainer?.widthTracksTextView = true
+        textView.isVerticallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.setAccessibilityRole(.staticText)  // VoiceOver reads it as text, not a text area
+        textView.setAccessibilityValue(text)
+
+        var height: CGFloat = 0
+        if let layout = textView.layoutManager, let container = textView.textContainer {
+            layout.ensureLayout(for: container)
+            height = ceil(layout.usedRect(for: container).height)
+        }
+        textView.frame.size.height = height
+        let visibleHeight = min(max(height, 1), 240)
+
+        // Sized before it gets the text view: growing from zero would widen the
+        // text view by the same amount through its autoresizing.
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: Self.contentWidth, height: visibleHeight))
+        scroll.documentView = textView
+        scroll.drawsBackground = false
+        scroll.borderType = .noBorder
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            scroll.widthAnchor.constraint(equalToConstant: Self.contentWidth),
+            scroll.heightAnchor.constraint(equalToConstant: visibleHeight),
+        ])
+        return scroll
     }
 
     override func viewDidAppear() {
@@ -193,6 +289,28 @@ private final class NotesTextView: NSTextView {
         }
         return super.performKeyEquivalent(with: event)
     }
+}
+
+/// The sheet's root view. Esc closes the read-only sheet whatever has focus: a
+/// focused text view would otherwise take `cancelOperation` for itself.
+private final class SheetStackView: NSStackView {
+    var onEscape: (() -> Void)?
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection([.shift, .option, .control, .command])
+        if let onEscape, event.keyCode == 53, modifiers.isEmpty {  // Esc
+            onEscape()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
+/// A symbol beside text that already says it all: VoiceOver skips it.
+/// `setAccessibilityElement(false)` alone leaves NSImageView in the tree.
+private final class DecorativeImageView: NSImageView {
+    override func isAccessibilityElement() -> Bool { false }
+    override func accessibilityRole() -> NSAccessibility.Role? { nil }
 }
 
 /// The notes box, with the rounded border of the title field above it rather than
