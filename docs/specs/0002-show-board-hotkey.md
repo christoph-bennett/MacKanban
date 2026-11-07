@@ -64,3 +64,4 @@ A global hotkey, ⌃⌥K by default, brings the Board window to the front from a
 
 - Spec 0001 listed "Global hotkey" as out of scope and said "no third-party dependencies"; both are amended by this spec and ADR 0006 (dated notes there).
 - After building, Christoph's MacJot and MacKanban both register a global hotkey; ⌃⌥K doesn't collide with MacJot's ⌃⌥N and ⌃⌥F.
+- 2026-11-07: a global New Card hotkey was added after all (MVP ticket 17), as a second recorder below Show Board, default ⌃⌥⇧K. It brings the Board forward with the New Card sheet, as ⌘N opens it; still no quick-add panel. The two hotkeys refuse each other's combination.

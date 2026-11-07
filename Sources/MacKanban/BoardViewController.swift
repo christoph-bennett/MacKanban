@@ -101,9 +101,12 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     }
 
     /// The New Card sheet, behind the creation gate: a blocked attempt is recorded
-    /// as it opens, and a Triage start or Discard can be undone on its own.
-    func newCard() {
-        guard !isShowingSheet else { return }
+    /// as it opens, and a Triage start or Discard can be undone on its own. Nothing
+    /// opens while another sheet (or an alert) is on the Board.
+    /// - Parameter handingBackOnClose: once the sheet closes, saved or not, the
+    ///   Board closes as with Esc (the New Card hotkey, pressed in another app).
+    func newCard(handingBackOnClose: Bool = false) {
+        guard !isShowingSheet, view.window?.attachedSheet == nil else { return }
         let sheet: NewCardSheetController
         do {
             let gate = try board.attemptCreation()
@@ -132,7 +135,21 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             }
             reload()
         }
+        if handingBackOnClose { handsBackAfter = sheet }
         presentAsSheet(sheet)
+    }
+
+    /// The New Card sheet whose closing also closes the Board (New Card hotkey).
+    private weak var handsBackAfter: NSViewController?
+
+    /// Every sheet ends here, saved or not, also the New Card sheet's title-and-notes
+    /// step (it dismisses its parent). Hiding the app doesn't, so ⌘H keeps the hand-back.
+    override func dismiss(_ viewController: NSViewController) {
+        super.dismiss(viewController)
+        guard viewController === handsBackAfter else { return }
+        handsBackAfter = nil
+        // After the sheet has left the window: a window with a sheet won't close.
+        DispatchQueue.main.async { [weak self] in self?.closeAndHandBack(nil) }
     }
 
     private func triage(_ id: UUID, _ outcome: TriageOutcome) throws {

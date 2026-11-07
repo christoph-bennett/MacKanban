@@ -4,7 +4,7 @@ import KeyboardShortcuts
 
 /// Settings, in two tabs switched from the toolbar as in MacJot (spec 0002).
 /// General: the WIP Limit, the only rule the user can change (ADR 0001), the
-/// Archive Delay (spec 0003), the age labels on Cards, and Launch at login. Shortcuts: the show-Board hotkey.
+/// Archive Delay (spec 0003), the age labels on Cards, and Launch at login. Shortcuts: the Show Board and New Card hotkeys.
 /// AppKit rather than SwiftUI: a WIP Limit change has to go through the Board,
 /// which records it as a Board Event.
 @MainActor
@@ -46,8 +46,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     private var approvalRow: NSGridRow!
     private var panes: [Pane: NSView] = [:]
     private var current: Pane?
-    private let hotkeyNote = NSTextField(wrappingLabelWithString: "")
-    private var shortcutsGrid: NSGridView?
+    /// Per hotkey, the row saying another app holds its combination: shown only then.
+    private var unavailableRows: [(Hotkey, NSGridRow)] = []
     private static let switcherID = NSToolbarItem.Identifier("SettingsPanes")
     private lazy var switcher: NSSegmentedControl = {
         let control = NSSegmentedControl(labels: Pane.allCases.map(\.title), trackingMode: .selectOne,
@@ -165,55 +165,87 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         return pane
     }
 
-    /// The recorder (KeyboardShortcuts' own, its text centred by MacJot's patch) and
-    /// Restore Default. The package refuses combinations in MacKanban's menus and
-    /// warns about ones macOS uses; a combination another app holds is refused here.
-    /// A refused one isn't saved, so the previous hotkey stays. Clearing it turns
-    /// the hotkey off. A sample store's MacKanban shows only a note.
+    /// Per hotkey, the recorder (KeyboardShortcuts' own, its text centred by MacJot's
+    /// patch) and Restore Default: Show Board (spec 0002), then New Card (MVP ticket
+    /// 17). The package refuses combinations in MacKanban's menus and warns about ones
+    /// macOS uses; a combination another app holds, or the other hotkey's, is refused
+    /// here. A refused one isn't saved, so the previous hotkey stays. Clearing one
+    /// turns it off. A sample store's MacKanban registers neither and says so.
     private func makeShortcutsPane() -> NSView {
-        hotkeyNote.font = .preferredFont(forTextStyle: .callout)
-        hotkeyNote.textColor = .systemRed
-        hotkeyNote.stringValue = "Another app is using this combination, so it doesn’t work in MacKanban. Record a different one."
-        let explanation = Self.note("Brings the Board to the front from any app. Pressed again while the Board is in front, it closes it, as Esc does.")
-        let restoreNote = Self.note("Sets the hotkey back to \(ShowBoardHotkey.defaultDisplayString).")
-        let sampleNote = Self.note("Not active in a MacKanban opened on a sample store, so it doesn’t take the hotkey from your real MacKanban.")
-        for note in [hotkeyNote, explanation, restoreNote, sampleNote] {
-            note.preferredMaxLayoutWidth = 300
-            note.widthAnchor.constraint(equalToConstant: 300).isActive = true
-        }
         let rows: [[NSView]]
+        var sections: [(hotkey: Hotkey, unavailableNote: NSView, explanation: NSView, last: NSView)] = []
         if registersHotkey {
-            let recorder = KeyboardShortcuts.RecorderCocoa(for: .showBoard) { [weak self] _ in
-                // Saved only after passing the check below, so it's registered now (or cleared).
-                ShowBoardHotkey.isUnavailable = false
-                self?.refresh()
-                self?.fitWindowToPane()
-            }
-            recorder.validateShortcut = { shortcut in
-                ShowBoardHotkey.problem(recording: shortcut).map { .disallow(reason: $0) } ?? .allow
-            }
-            recorder.setAccessibilityLabel("Show Board hotkey")
-            let restore = NSButton(title: "Restore Default", target: self, action: #selector(restoreDefaultHotkey(_:)))
-            rows = [
-                [NSTextField(labelWithString: "Show Board:"), recorder],
-                [NSGridCell.emptyContentView, hotkeyNote],
-                [NSGridCell.emptyContentView, explanation],
-                [NSGridCell.emptyContentView, restore],
-                [NSGridCell.emptyContentView, restoreNote],
+            let explanations = [
+                "Brings the Board to the front from any app. Pressed again while the Board is in front, it closes it, as Esc does.",
+                "Brings the Board to the front with the New Card sheet on it, as ⌘N does. Pressed in another app, closing the sheet takes you back there.",
             ]
+            var all: [[NSView]] = []
+            for (hotkey, text) in zip(Hotkey.all, explanations) {
+                let section = hotkeyRows(hotkey, explaining: text)
+                all += section.rows
+                sections.append((hotkey, section.unavailableNote, section.explanation, section.rows.last!.last!))
+            }
+            rows = all
         } else {
-            rows = [[NSTextField(labelWithString: "Show Board:"), sampleNote]]
+            let sampleNote = Self.note("Not active in a MacKanban opened on a sample store, so they don’t take the hotkeys from your real MacKanban.")
+            Self.fixWidth(of: sampleNote)
+            rows = Hotkey.all.map { [NSTextField(labelWithString: "\($0.title):"), Self.note("Off")] }
+                + [[NSGridCell.emptyContentView, sampleNote]]
         }
         let grid = NSGridView(views: rows)
         grid.column(at: 0).xPlacement = .trailing
         grid.rowAlignment = .firstBaseline
         grid.rowSpacing = 4
         grid.columnSpacing = 8
+        func row(of view: NSView) -> NSGridRow? { grid.cell(for: view)?.row }
         if registersHotkey {
-            grid.row(at: 2).bottomPadding = 12
-            shortcutsGrid = grid
+            for section in sections {
+                if let note = row(of: section.unavailableNote) { unavailableRows.append((section.hotkey, note)) }
+                row(of: section.explanation)?.bottomPadding = 12
+                row(of: section.last)?.bottomPadding = 20  // between the hotkeys
+            }
+        } else {
+            grid.row(at: Hotkey.all.count).topPadding = 4
         }
         return Self.paneView(around: grid)
+    }
+
+    /// The recorder, the unavailable note (hidden unless it applies), what the hotkey
+    /// does, Restore Default and what that sets.
+    private func hotkeyRows(_ hotkey: Hotkey, explaining text: String)
+        -> (rows: [[NSView]], unavailableNote: NSView, explanation: NSView) {
+        let unavailableNote = Self.note("Another app is using this combination, so it doesn’t work in MacKanban. Record a different one.")
+        unavailableNote.textColor = .systemRed
+        let explanation = Self.note(text)
+        let restoreNote = Self.note("Sets the hotkey back to \(hotkey.defaultDisplayString).")
+        for note in [unavailableNote, explanation, restoreNote] { Self.fixWidth(of: note) }
+
+        let recorder = KeyboardShortcuts.RecorderCocoa(for: hotkey.name) { [weak self] _ in
+            // Saved only after passing the check below, so it's registered now (or cleared).
+            hotkey.isUnavailable = false
+            self?.refresh()
+            self?.fitWindowToPane()
+        }
+        recorder.validateShortcut = { shortcut in
+            hotkey.problem(recording: shortcut).map { .disallow(reason: $0) } ?? .allow
+        }
+        recorder.setAccessibilityLabel("\(hotkey.title) hotkey")
+        let restore = NSButton(title: "Restore Default", target: self, action: #selector(restoreDefaultHotkey(_:)))
+        restore.tag = Hotkey.all.firstIndex { $0.name == hotkey.name } ?? 0
+        restore.setAccessibilityLabel("Restore Default \(hotkey.title) hotkey")
+        let rows: [[NSView]] = [
+            [NSTextField(labelWithString: "\(hotkey.title):"), recorder],
+            [NSGridCell.emptyContentView, unavailableNote],
+            [NSGridCell.emptyContentView, explanation],
+            [NSGridCell.emptyContentView, restore],
+            [NSGridCell.emptyContentView, restoreNote],
+        ]
+        return (rows, unavailableNote, explanation)
+    }
+
+    private static func fixWidth(of note: NSTextField) {
+        note.preferredMaxLayoutWidth = 300
+        note.widthAnchor.constraint(equalToConstant: 300).isActive = true
     }
 
     private static func note(_ text: String) -> NSTextField {
@@ -272,14 +304,15 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         return item
     }
 
-    @objc private func restoreDefaultHotkey(_ sender: Any?) {
-        let restored = ShowBoardHotkey.restoreDefault()
+    @objc private func restoreDefaultHotkey(_ sender: NSButton) {
+        let hotkey = Hotkey.all[sender.tag]
+        let problem = hotkey.restoreDefault()
         refresh()
         fitWindowToPane()
-        guard !restored, let window else { return }
+        guard let problem, let window else { return }
         let alert = NSAlert()
-        alert.messageText = "\(ShowBoardHotkey.defaultDisplayString) is in use by another app."
-        alert.informativeText = "So the hotkey keeps its current combination."
+        alert.messageText = problem
+        alert.informativeText = "So the \(hotkey.title) hotkey keeps its current combination."
         alert.beginSheetModal(for: window)
     }
 
@@ -305,7 +338,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         launchAtLogin.state = state == .on || state == .needsApproval ? .on : .off
         launchAtLogin.isEnabled = offersLaunchAtLogin && state != .unavailable
         approvalRow.isHidden = state != .needsApproval
-        shortcutsGrid?.row(at: 1).isHidden = !ShowBoardHotkey.isUnavailable
+        for (hotkey, row) in unavailableRows { row.isHidden = !hotkey.isUnavailable }
     }
 
     @objc private func wipLimitChanged(_ sender: NSPopUpButton) {

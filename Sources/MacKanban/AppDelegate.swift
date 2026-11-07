@@ -59,10 +59,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSApp.mainMenu = MainMenu.make(appDelegate: self)
-        // A sample store's MacKanban leaves the hotkey to the real one.
+        // A sample store's MacKanban leaves the hotkeys to the real one.
         if isRealStore {
-            ShowBoardHotkey.checkAvailableBeforeRegistering()
+            Hotkey.all.forEach { $0.checkAvailableBeforeRegistering() }
             KeyboardShortcuts.onKeyDown(for: .showBoard) { [weak self] in self?.toggleBoard() }
+            KeyboardShortcuts.onKeyDown(for: .newCard) { [weak self] in self?.newCardFromHotkey() }
         }
         quitNormallyOnTerminationSignal()
         showBoard()
@@ -144,6 +145,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             showBoard()
         }
+    }
+
+    /// The New Card hotkey (MVP ticket 17): the Board to the front with the New Card
+    /// sheet on it, as ⌘N opens it. A sheet already on the Board stays and nothing
+    /// new opens. Called from another app, closing the sheet closes the Board as Esc
+    /// does and hands back to that app; called with MacKanban in front, the Board stays.
+    func newCardFromHotkey() {
+        guard let board else { return }
+        let cameFromAnotherApp = !NSApp.isActive
+        showBoard()
+        board.newCard(handingBackOnClose: cameFromAnotherApp)
     }
 
     /// `kill`/`pkill` (e.g. scripts/install.sh) send SIGTERM, which would end

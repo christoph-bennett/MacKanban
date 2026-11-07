@@ -51,6 +51,12 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
         boardView.newCard()
     }
 
+    /// - Parameter handingBackOnClose: closing the sheet also closes the Board as
+    ///   Esc does (the New Card hotkey, pressed in another app).
+    func newCard(handingBackOnClose: Bool) {
+        boardView.newCard(handingBackOnClose: handingBackOnClose)
+    }
+
     var showsAges: Bool {
         get { boardView.showsAges }
         set { boardView.showsAges = newValue }
