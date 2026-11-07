@@ -71,7 +71,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         self.defaults = defaults
         self.offersLaunchAtLogin = offersLaunchAtLogin
         self.registersHotkey = registersHotkey
-        let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: true)
+        let window = SettingsWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: true)
         window.isReleasedWhenClosed = false
         super.init(window: window)
         let toolbar = NSToolbar(identifier: "Settings")
@@ -349,5 +349,16 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
 
     @objc private func openLoginItems(_ sender: Any?) {
         LaunchAtLogin.openSystemSettings()
+    }
+}
+
+/// Esc closes Settings like ⌘W, as it closes the Archive, and as in MacJot (ticket
+/// 18). Unlike the Board's Esc it doesn't hide MacKanban. On the window: an override
+/// on the controller didn't receive Esc when tried (2026-11-07). A recorder that is
+/// recording swallows Esc to end the recording (KeyboardShortcuts' event monitor),
+/// and an open dropdown takes Esc to close itself, so neither gets this far.
+private final class SettingsWindow: NSWindow {
+    override func cancelOperation(_ sender: Any?) {
+        performClose(sender)
     }
 }
