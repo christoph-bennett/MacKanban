@@ -11,13 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var terminationSignal: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // A store other than the real one gets its own settings, so trying things
-        // on a sample Board can't change the real WIP Limit or Archive Delay.
         let isRealStore = Self.storeOverride == nil
-        let defaults = isRealStore ? UserDefaults.standard : UserDefaults(suiteName: "com.onethingwell.mackanban.sample")!
-        defaults.register(defaults: [SettingsWindowController.wipLimitKey: Board.defaultWIPLimit,
-                                     SettingsWindowController.archiveDelayKey: Board.defaultArchiveDelay,
-                                     SettingsWindowController.showsAgesKey: true])
+        let defaults = Self.defaults
         do {
             let model = try Board(storeURL: Self.storeURL, wipLimit: defaults.integer(forKey: SettingsWindowController.wipLimitKey),
                                   archiveDelay: defaults.integer(forKey: SettingsWindowController.archiveDelayKey))
@@ -27,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.onBoardSettingChange = { [weak board] in board?.reload() }  // its state change reloads the Archive too
             board.showsAges = defaults.bool(forKey: SettingsWindowController.showsAgesKey)
             settings.onShowsAgesChange = { [weak board] in board?.showsAges = $0 }
+            settings.onShowsInDockChange = { Self.switchDock(to: $0) }
             let statusItem = StatusItemController(board: model)
             statusItem.onNewCard = { [weak self] in self?.newCard() }
             statusItem.onOpenBoard = { [weak self] in self?.showBoard() }
@@ -90,6 +86,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { showBoard() }
         return true
+    }
+
+    /// The settings: the real ones, or a sample store's own, so trying things on a
+    /// sample Board can't change the real WIP Limit, Archive Delay or Dock icon.
+    private static let defaults: UserDefaults = {
+        let defaults = storeOverride == nil ? UserDefaults.standard : UserDefaults(suiteName: "com.onethingwell.mackanban.sample")!
+        defaults.register(defaults: [SettingsWindowController.wipLimitKey: Board.defaultWIPLimit,
+                                     SettingsWindowController.archiveDelayKey: Board.defaultArchiveDelay,
+                                     SettingsWindowController.showsAgesKey: true,
+                                     SettingsWindowController.showsInDockKey: true])
+        return defaults
+    }()
+
+    /// With the Dock icon (and the app switcher and menu bar that come with it), or
+    /// without, from the menu bar extra and the hotkeys only (spec 0004). At launch
+    /// from the stored setting, before any window shows.
+    static func applyDockSetting(_ showsInDock: Bool? = nil) {
+        let showsInDock = showsInDock ?? defaults.bool(forKey: SettingsWindowController.showsInDockKey)
+        NSApp.setActivationPolicy(showsInDock ? .regular : .accessory)
+    }
+
+    /// From Settings. Switching off deactivates MacKanban, twice in a row, and
+    /// reactivating brought only the key window back, so the Board fell behind the
+    /// app below it. Once that has settled, every window goes back in front in the
+    /// order it had (spec 0004, story 20).
+    /// Switching again before the last restore has run keeps that restore and its
+    /// window order: a second snapshot would see the windows already pushed back.
+    private static func switchDock(to showsInDock: Bool) {
+        let restore = WindowOrderRestore.pending ?? WindowOrderRestore(NSApp.orderedWindows.filter(\.isVisible))
+        applyDockSetting(showsInDock)
+        restore.schedule()
     }
 
     /// `~/Library/Application Support/MacKanban/Board.sqlite` (ADR 0002), unless
@@ -164,5 +191,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         source.setEventHandler { NSApp.terminate(nil) }
         source.resume()
         terminationSignal = source
+    }
+}
+
+/// Puts MacKanban's windows back in front, in the order they had, after a Dock
+/// switch. macOS deactivates MacKanban once on the switch and again about 50 ms
+/// later (seen 2026-11-07), so restoring right after the first was undone by the
+/// second: each deactivation within the first second postpones the restore by
+/// 0.2 s, and it runs once, when that has settled.
+@MainActor
+private final class WindowOrderRestore {
+    /// The restore not yet run, if any.
+    static private(set) var pending: WindowOrderRestore?
+
+    private let windows: [NSWindow]
+    private var observer: NSObjectProtocol?
+    private var work: DispatchWorkItem?
+    private var cutOff: DispatchWorkItem?
+    private static let quietTime: TimeInterval = 0.2
+
+    init(_ windows: [NSWindow]) {
+        self.windows = windows
+    }
+
+    func schedule() {
+        Self.pending = self
+        if observer == nil {
+            observer = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
+                                                              object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.postpone() }
+            }
+        }
+        postpone()
+        // Deactivations more than a second after the last switch aren't its.
+        cutOff?.cancel()
+        let stop = DispatchWorkItem { [self] in stopObserving() }
+        cutOff = stop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: stop)
+    }
+
+    private func postpone() {
+        work?.cancel()
+        let next = DispatchWorkItem { [self] in run() }
+        work = next
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.quietTime, execute: next)
+    }
+
+    /// Windows closed in the meantime stay closed.
+    private func run() {
+        if Self.pending === self { Self.pending = nil }
+        stopObserving()  // a deactivation after this is the user's, not the switch's
+        let open = windows.filter(\.isVisible)
+        NSApp.activateAsAsked()
+        for window in open.reversed() { window.orderFront(nil) }
+        open.first?.makeKey()
+    }
+
+    private func stopObserving() {
+        cutOff?.cancel()
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        observer = nil
     }
 }

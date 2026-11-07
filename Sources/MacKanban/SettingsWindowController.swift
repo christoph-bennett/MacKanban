@@ -3,7 +3,7 @@ import KanbanCore
 import KeyboardShortcuts
 
 /// Settings, in three tabs switched from the toolbar as in MacJot (spec 0002,
-/// spec 0004). General: the age labels on Cards and Launch at login. Board: the
+/// spec 0004). General: the age labels on Cards, Launch at login and the Dock icon. Board: the
 /// WIP Limit, the only rule the user can change (ADR 0001), and the Archive Delay
 /// (spec 0003). Shortcuts: the Show Board and New Card hotkeys.
 /// AppKit rather than SwiftUI: a WIP Limit change has to go through the Board,
@@ -27,12 +27,15 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     /// Here rather than in a View menu, where people would look for it (decided
     /// 2026-10-24, overriding HIG audit finding 5).
     static let showsAgesKey = "showsAges"
+    static let showsInDockKey = "showsInDock"
 
     /// After a setting the Board computes with changed (the WIP Limit, the Archive
     /// Delay), so the Board window, and through it the Archive, show the result at once.
     var onBoardSettingChange: (() -> Void)?
     /// After the age labels were switched on or off.
     var onShowsAgesChange: ((Bool) -> Void)?
+    /// After "Show MacKanban in the Dock" was switched on or off.
+    var onShowsInDockChange: ((Bool) -> Void)?
 
     private let board: Board
     private let defaults: UserDefaults
@@ -42,6 +45,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     private let archiveDelay = NSPopUpButton()
     private let showsAges = NSButton(checkboxWithTitle: "Show ages on Cards", target: nil, action: nil)
     private let launchAtLogin = NSButton(checkboxWithTitle: "Open MacKanban at login", target: nil, action: nil)
+    private let showsInDock = NSButton(checkboxWithTitle: "Show MacKanban in the Dock", target: nil, action: nil)
     private let approvalNote = NSTextField(wrappingLabelWithString: "")
     /// Shown only while Launch at login needs approval.
     private var approvalRow: NSGridRow!
@@ -116,15 +120,21 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         approval.orientation = .vertical
         approval.alignment = .leading
 
+        showsInDock.target = self
+        showsInDock.action = #selector(showsInDockChanged(_:))
+        let dockNote = Self.note("When off, MacKanban runs from the menu bar and its hotkeys, and isn’t in the Dock or the app switcher.")
+
         // A fixed width: with only a preferred one, the grid squeezed the notes
         // narrower than they were measured for and cut them off.
-        [wipNote, archiveNote, agesNote, approvalNote].forEach(Self.fixWidth)
+        [wipNote, archiveNote, agesNote, approvalNote, dockNote].forEach(Self.fixWidth)
 
         let general = Self.settingsGrid([
             [NSTextField(labelWithString: "Cards:"), showsAges],
             [NSGridCell.emptyContentView, agesNote],
             [NSTextField(labelWithString: "Startup:"), launchAtLogin],
             [NSGridCell.emptyContentView, approval],
+            [NSTextField(labelWithString: "Dock:"), showsInDock],
+            [NSGridCell.emptyContentView, dockNote],
         ])
         approvalRow = general.cell(for: approval)?.row
         // The rules for how Cards flow over the Board (spec 0004).
@@ -148,16 +158,18 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
 
     /// Labels right-aligned beside their controls, in MacJot's Settings spacing (HIG
     /// audit, finding 7): an explanation 4 pt below its control, 16 pt between
-    /// settings, so 12 pt more under a row without a label when a labelled row follows.
+    /// settings, so 12 pt more above a labelled row that follows a row without a label.
+    /// Above rather than below: the row before may be hidden (Launch at login's
+    /// approval row), and its padding would go with it.
     private static func settingsGrid(_ rows: [[NSView]]) -> NSGridView {
         let grid = NSGridView(views: rows)
         grid.column(at: 0).xPlacement = .trailing
         grid.rowAlignment = .firstBaseline
         grid.rowSpacing = 4
         grid.columnSpacing = 8
-        for index in rows.indices.dropLast()
-        where rows[index].first === NSGridCell.emptyContentView && rows[index + 1].first !== NSGridCell.emptyContentView {
-            grid.row(at: index).bottomPadding = 12
+        for index in rows.indices.dropFirst()
+        where rows[index - 1].first === NSGridCell.emptyContentView && rows[index].first !== NSGridCell.emptyContentView {
+            grid.row(at: index).topPadding = 12
         }
         return grid
     }
@@ -209,7 +221,9 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
             for section in sections {
                 if let note = row(of: section.unavailableNote) { unavailableRows.append((section.hotkey, note)) }
                 row(of: section.explanation)?.bottomPadding = 12
-                row(of: section.last)?.bottomPadding = 20  // between the hotkeys
+            }
+            for section in sections.dropLast() {
+                row(of: section.last)?.bottomPadding = 8  // 20 pt between the hotkeys, with the 12 above the next
             }
         } else {
             grid.row(at: Hotkey.all.count).topPadding = 4
@@ -340,6 +354,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         wipLimit.selectItem(withTag: board.wipLimit)
         archiveDelay.selectItem(withTag: board.archiveDelay)
         showsAges.state = defaults.bool(forKey: Self.showsAgesKey) ? .on : .off
+        showsInDock.state = defaults.bool(forKey: Self.showsInDockKey) ? .on : .off
         let state = LaunchAtLogin.state
         // Shown as on while it needs approval: it's still registered, and
         // switching it off here unregisters it.
@@ -375,6 +390,11 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     @objc private func showsAgesChanged(_ sender: NSButton) {
         defaults.set(sender.state == .on, forKey: Self.showsAgesKey)
         onShowsAgesChange?(sender.state == .on)
+    }
+
+    @objc private func showsInDockChanged(_ sender: NSButton) {
+        defaults.set(sender.state == .on, forKey: Self.showsInDockKey)
+        onShowsInDockChange?(sender.state == .on)
     }
 
     @objc private func launchAtLoginChanged(_ sender: NSButton) {

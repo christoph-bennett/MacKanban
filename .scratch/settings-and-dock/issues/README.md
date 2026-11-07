@@ -6,4 +6,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 |---|---|---|---|
 | 01 | [Settings gets a "Board" tab](01-settings-board-tab.md) | none | done |
 | 02 | [Open Archive from the menu bar extra](02-archive-in-menu-bar-extra.md) | none | done |
-| 03 | [Option to hide MacKanban from the Dock](03-hide-dock-icon.md) | 01, 02 | ready-for-agent |
+| 03 | [Option to hide MacKanban from the Dock](03-hide-dock-icon.md) | 01, 02 | done |

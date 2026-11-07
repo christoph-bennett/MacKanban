@@ -22,5 +22,9 @@
 	<string>14.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<!-- Starts without a Dock icon, so none flashes up when it's switched off;
+	     main.swift brings it back at once when "Show MacKanban in the Dock" is on (spec 0004). -->
+	<key>LSUIElement</key>
+	<true/>
 </dict>
 </plist>

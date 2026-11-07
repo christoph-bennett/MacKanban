@@ -7,5 +7,7 @@ UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 300])
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
-app.setActivationPolicy(.regular)
+// The bundle starts without a Dock icon (LSUIElement); the setting decides, before
+// any window shows (spec 0004).
+AppDelegate.applyDockSetting()
 app.run()
