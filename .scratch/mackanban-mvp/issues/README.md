@@ -21,3 +21,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 15 | [A click beside the Cards clears the selection](15-click-beside-cards-deselects.md) | none | done |
 | 16 | [Card count in the Backlog and Done headers](16-card-counts-in-headers.md) | none | done |
 | 17 | [Global hotkey for a New Card](17-new-card-hotkey.md) | none | ready-for-agent |
+| 18 | [Esc closes Settings](18-esc-closes-settings.md) | none | ready-for-agent |
