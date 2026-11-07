@@ -601,23 +601,25 @@ public final class Board {
         return gate
     }
 
-    /// Archived Done Cards and Discarded Cards, the most recently ended first.
-    public func archive() throws -> [ArchivedCard] {
+    /// Archived Done Cards and Discarded Cards, apart and each the most recently ended first.
+    public func archive() throws -> Archive {
         let request = NSFetchRequest<NSManagedObject>(entityName: "Card")
         request.relationshipKeyPathsForPrefetching = ["events"]
         let now = now()
-        return try context.fetch(request).compactMap { object -> ArchivedCard? in
+        var done: [ArchivedCard] = []
+        var discarded: [ArchivedCard] = []
+        for object in try context.fetch(request) {
             let visits = Self.visits(of: object)
             guard let created = visits.first?.entered, let last = visits.last,
                   let card = Self.card(object, in: .done, age: nil)  // read-only, no Urgency
-            else { return nil }
-            if let discarded = last.left {
-                return ArchivedCard(card: card, created: created, ended: discarded, outcome: .discarded)
+            else { continue }
+            if let left = last.left {
+                discarded.append(ArchivedCard(card: card, created: created, ended: left))
+            } else if isArchived(visits, at: now) {
+                done.append(ArchivedCard(card: card, created: created, ended: last.entered))
             }
-            guard isArchived(visits, at: now) else { return nil }
-            return ArchivedCard(card: card, created: created, ended: last.entered, outcome: .done)
         }
-        .sorted { $0.ended > $1.ended }
+        return Archive(done: done.sorted { $0.ended > $1.ended }, discarded: discarded.sorted { $0.ended > $1.ended })
     }
 
     /// The whole event log, oldest first.

@@ -32,8 +32,8 @@ struct ArchiveByHandTests {
         try board.archiveCard(shipped)
 
         #expect(try board.cards(in: .done).map(\.id) == [older])
-        let archived = try #require(try board.archive().first)
-        #expect((archived.id, archived.outcome) == (shipped, .done))
+        let archived = try #require(try board.archive().done.first)
+        #expect(archived.id == shipped)  // in the Done list
         #expect(try board.capacity() == capacity)
     }
 
@@ -56,7 +56,7 @@ struct ArchiveByHandTests {
 
         try board.archiveCard(id)
 
-        let archived = try #require(try board.archive().first)
+        let archived = try #require(try board.archive().done.first)
         #expect((archived.created, archived.ended) == (created, finished))
     }
 
@@ -66,7 +66,7 @@ struct ArchiveByHandTests {
 
         try board.changeArchiveDelay(to: 7)
         #expect(try board.cards(in: .done).isEmpty)
-        #expect(try board.archive().map(\.id) == [id])
+        #expect(try board.archive().done.map(\.id) == [id])
     }
 
     @Test func onlyDoneCardsCanBeArchived() throws {
@@ -130,7 +130,7 @@ struct ArchiveByHandTests {
         clock.advance(days: 0.007)  // 10 minutes later: within the undo window, past the delay
 
         #expect(throws: BoardError.archiveDelayIsUp) { try board.revert(archive) }
-        #expect(try board.archive().map(\.id) == [id])
+        #expect(try board.archive().done.map(\.id) == [id])
         #expect(try board.events().last?.kind == .archived)  // nothing was undone
     }
 
@@ -139,7 +139,7 @@ struct ArchiveByHandTests {
         try board.archiveCard(id)
 
         #expect(throws: BoardError.cannotUndo) { try board.revert(toDone) }
-        #expect(try board.archive().map(\.id) == [id])
+        #expect(try board.archive().done.map(\.id) == [id])
     }
 
     @Test func archivingAgainAfterAnUndoWorks() throws {
@@ -161,7 +161,7 @@ struct ArchiveByHandTests {
         try board.archiveAllDoneCards()
 
         #expect(try board.cards(in: .done).isEmpty)
-        #expect(Set(try board.archive().map(\.id)) == [first, second])
+        #expect(Set(try board.archive().done.map(\.id)) == [first, second])
         #expect(try board.cards(in: .backlog).map(\.id) == [open])
         #expect(try board.capacity() == capacity)
         #expect(try board.events().suffix(2).map(\.kind) == [.archived, .archived])
@@ -177,7 +177,7 @@ struct ArchiveByHandTests {
         try board.archiveAllDoneCards()
 
         #expect(try board.cards(in: .done) == samples)
-        #expect(try board.archive().first?.id == mine)
+        #expect(try board.archive().done.first?.id == mine)
         #expect(try board.events().count == eventsBefore + 1)
     }
 
@@ -211,7 +211,7 @@ struct ArchiveByHandTests {
         try board.revert(archiveAll)
 
         #expect(try board.cards(in: .done).map(\.id) == [recent])
-        #expect(try board.archive().map(\.id) == [old])
+        #expect(try board.archive().done.map(\.id) == [old])
     }
 
     @Test func undoingArchiveAllIsRefusedWhenNoneOfItsCardsCanComeBack() throws {
@@ -221,7 +221,7 @@ struct ArchiveByHandTests {
         clock.advance(days: 0.007)
 
         #expect(throws: BoardError.archiveDelayIsUp) { try board.revert(archiveAll) }
-        #expect(try board.archive().map(\.id) == [id])
+        #expect(try board.archive().done.map(\.id) == [id])
     }
 
     @Test func archiveAllNamesTheNewestDoneCardFirst() throws {

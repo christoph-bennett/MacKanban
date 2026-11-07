@@ -28,9 +28,9 @@ struct SampleCardsTests {
         #expect(!(state.columns[.done] ?? []).isEmpty)
         #expect(state.capacity.free >= 1)
         let archive = try board.archive()
-        #expect(archive.contains { $0.outcome == .discarded })
-        #expect(archive.contains { $0.outcome == .done })
-        let all = backlog + doing + (state.columns[.done] ?? []) + archive.map(\.card)
+        #expect(!archive.discarded.isEmpty)
+        #expect(!archive.done.isEmpty)
+        let all = backlog + doing + (state.columns[.done] ?? []) + archive.all.map(\.card)
         #expect(all.allSatisfy { $0.isSample })
         #expect(try board.sampleCardCount() == all.count)
     }

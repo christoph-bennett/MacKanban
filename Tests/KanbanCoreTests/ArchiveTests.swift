@@ -34,7 +34,7 @@ struct ArchiveTests {
 
         clock.advance(days: 0.01)
         #expect(try board.cards(in: .done).isEmpty)
-        #expect(try board.archive().map(\.id) == [id])
+        #expect(try board.archive().done.map(\.id) == [id])
         #expect(try board.events() == events)  // archiving follows from the rule, it isn't recorded
     }
 
@@ -62,7 +62,7 @@ struct ArchiveTests {
         try board.changeArchiveDelay(to: 1)  // shortening archives Old straight away
         #expect(board.archiveDelay == 1)
         #expect(try board.cards(in: .done).map(\.id) == [recent])
-        #expect(try board.archive().map(\.id) == [old])
+        #expect(try board.archive().done.map(\.id) == [old])
     }
 
     @Test func changingTheArchiveDelayRecordsNothingAndLeavesThroughputAlone() throws {
@@ -98,10 +98,10 @@ struct ArchiveTests {
         #expect(try board.archive().isEmpty)  // still on the Board
 
         clock.advance(days: 7)
-        let archived = try #require(try board.archive().first)
+        let archived = try #require(try board.archive().done.first)
 
         #expect((archived.card.id, archived.card.title) == (id, "Shipped"))
-        #expect((archived.created, archived.ended, archived.outcome) == (created, finished, .done))
+        #expect((archived.created, archived.ended) == (created, finished))
     }
 
     @Test func discardedCardsGoStraightToTheArchiveNewestFirst() throws {
@@ -116,9 +116,21 @@ struct ArchiveTests {
         try board.discard(later)
 
         let archive = try board.archive()
-        #expect(archive.map(\.id) == [later, dropped, shipped])
-        #expect(archive.map(\.outcome) == [.discarded, .discarded, .done])
-        #expect(archive[1].ended == discarded)
+        #expect(archive.done.map(\.id) == [shipped])
+        #expect(archive.discarded.map(\.id) == [later, dropped])
+        #expect(archive.discarded[1].ended == discarded)
+    }
+
+    @Test func theArchiveListsDoneCardsByWhenTheyWereFinishedNewestFirst() throws {
+        let first = try finish("First")
+        let second = try finish("Second")
+        try board.archiveCard(second)  // archived by hand first, but finished later
+        clock.advance(days: 3)  // First leaves after the delay
+        let third = try finish("Third")
+        try board.archiveCard(third)
+
+        #expect(try board.archive().done.map(\.id) == [third, second, first])
+        #expect(try board.archive().discarded.isEmpty)
     }
 
     @Test func anArchivedCardStillCountsAsThroughputFor14Days() throws {

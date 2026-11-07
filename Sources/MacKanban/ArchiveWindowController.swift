@@ -1,8 +1,9 @@
 import AppKit
 import KanbanCore
 
-/// The Archive window (⌘⇧A): archived Done Cards and Discarded Cards, the most
-/// recently ended first, read-only. A double-click or Return opens a Card; Esc closes the window.
+/// The Archive window (⌘⇧A): a Done section, then a Discarded section, each the
+/// most recently ended first, read-only (spec 0003). A double-click or Return opens
+/// a Card; Esc closes the window.
 @MainActor
 final class ArchiveWindowController: NSWindowController {
     private let archive: ArchiveViewController
@@ -40,14 +41,38 @@ final class ArchiveWindowController: NSWindowController {
 @MainActor
 private final class ArchiveViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     private let board: Board
-    private var cards: [ArchivedCard] = []
+    /// The Archive's two sections, in the order shown (spec 0003).
+    private enum Section: CaseIterable {
+        case done, discarded
+
+        var title: String {
+            switch self {
+            case .done: "Done"
+            case .discarded: "Discarded"
+            }
+        }
+    }
+
+    /// What the table shows: each non-empty section's heading, then its Cards.
+    private enum Row {
+        case heading(Section)
+        case card(ArchivedCard, Section)
+
+        var card: ArchivedCard? {
+            if case let .card(card, _) = self { card } else { nil }
+        }
+    }
+
+    private var rows: [Row] = []
     private let table = ArchiveTableView()
     private let emptyLabel = NSTextField(labelWithString: "Nothing in the Archive yet.")
     private var refreshTimer: Timer?
 
+    /// The cell of a section heading, which spans the row rather than a column.
+    private static let headingCellID = NSUserInterfaceItemIdentifier("heading")
+
     private enum ColumnID {
         static let title = NSUserInterfaceItemIdentifier("title")
-        static let outcome = NSUserInterfaceItemIdentifier("outcome")
         static let created = NSUserInterfaceItemIdentifier("created")
         static let ended = NSUserInterfaceItemIdentifier("ended")
     }
@@ -61,9 +86,10 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override func loadView() {
-        // The outcome sits next to its date (decided 2026-10-24), both from the Card's events.
-        for (id, title, width) in [(ColumnID.title, "Card", 200.0), (ColumnID.created, "Created", 110),
-                                   (ColumnID.outcome, "Outcome", 90), (ColumnID.ended, "Ended", 150)] {
+        // No Outcome column: the section says it (spec 0003). Ended is when the Card
+        // was finished or Discarded, as its section heading says.
+        for (id, title, width) in [(ColumnID.title, "Card", 240.0), (ColumnID.created, "Created", 110),
+                                   (ColumnID.ended, "Ended", 150)] {
             let column = NSTableColumn(identifier: id)
             column.title = title
             column.width = width
@@ -122,59 +148,68 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         reload()
     }
 
-    /// Keeps the selected Card selected: new entries arrive at the top.
+    /// Keeps the selected Card selected: new entries arrive at the top of their section.
     func reload() {
-        let selected = table.selectedRow >= 0 ? cards[table.selectedRow].id : nil
+        let selected = selectedCard?.id
         do {
-            cards = try board.archive()
+            let archive = try board.archive()
+            rows = Section.allCases.flatMap { section -> [Row] in
+                let cards = section == .done ? archive.done : archive.discarded
+                guard !cards.isEmpty else { return [] }  // an empty section isn't shown
+                return [.heading(section)] + cards.map { .card($0, section) }
+            }
         } catch {
-            cards = []
+            rows = []
             // One alert at a time: every Board change reloads this window.
             if let window = view.window, window.isVisible, window.attachedSheet == nil {
                 NSAlert(error: error).beginSheetModal(for: window)
             }
         }
         table.reloadData()
-        if let selected, let row = cards.firstIndex(where: { $0.id == selected }) {
+        if let selected, let row = rows.firstIndex(where: { $0.card?.id == selected }) {
             table.selectRowIndexes([row], byExtendingSelection: false)
         } else {
             table.deselectAll(nil)
         }
-        emptyLabel.isHidden = !cards.isEmpty
+        emptyLabel.isHidden = !rows.isEmpty
+    }
+
+    private var selectedCard: ArchivedCard? {
+        rows.indices.contains(table.selectedRow) ? rows[table.selectedRow].card : nil
     }
 
     // MARK: Table
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        cards.count
+        rows.count
+    }
+
+    /// Section headings span the row and can't be selected; the arrow keys pass over them.
+    func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+        rows[row].card == nil
+    }
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        rows[row].card != nil
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard let archived = rows[row].card else {
+            guard case let .heading(section) = rows[row] else { return nil }
+            let cell = tableView.makeView(withIdentifier: Self.headingCellID, owner: self) as? NSTableCellView ?? Self.cell(Self.headingCellID)
+            cell.textField?.stringValue = section.title
+            cell.textField?.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
+            cell.textField?.textColor = .secondaryLabelColor
+            cell.textField?.setAccessibilityRoleDescription("section heading")  // VoiceOver: "Done, section heading"
+            return cell
+        }
         guard let id = tableColumn?.identifier else { return nil }
-        let archived = cards[row]
         let text = switch id {
         case ColumnID.title: archived.card.title
-        case ColumnID.outcome: archived.outcome == .done ? "Done" : "Discarded"
         case ColumnID.created: archived.created.formatted(date: .abbreviated, time: .omitted)
         default: archived.ended.formatted(date: .abbreviated, time: .shortened)  // when it was finished or Discarded
         }
-        // A cell view with its text field centred in the row, as AppKit's own cells
-        // are; a bare text field draws its text at the top of the row.
-        let cell = tableView.makeView(withIdentifier: id, owner: self) as? NSTableCellView ?? {
-            let cell = NSTableCellView()
-            cell.identifier = id
-            let field = NSTextField(labelWithString: "")
-            field.lineBreakMode = .byTruncatingTail
-            field.translatesAutoresizingMaskIntoConstraints = false
-            cell.addSubview(field)
-            cell.textField = field  // also gives it the selected row's text colours
-            NSLayoutConstraint.activate([
-                field.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
-                field.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -2),
-                field.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            ])
-            return cell
-        }()
+        let cell = tableView.makeView(withIdentifier: id, owner: self) as? NSTableCellView ?? Self.cell(id)
         guard let field = cell.textField else { return cell }
         field.stringValue = text
         field.textColor = id == ColumnID.title ? .labelColor : .secondaryLabelColor
@@ -184,24 +219,43 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         return cell
     }
 
+    /// A cell view with its text field centred in the row, as AppKit's own cells
+    /// are; a bare text field draws its text at the top of the row.
+    private static func cell(_ id: NSUserInterfaceItemIdentifier) -> NSTableCellView {
+        let cell = NSTableCellView()
+        cell.identifier = id
+        let field = NSTextField(labelWithString: "")
+        field.lineBreakMode = .byTruncatingTail
+        field.translatesAutoresizingMaskIntoConstraints = false
+        cell.addSubview(field)
+        cell.textField = field  // also gives it the selected row's text colours
+        NSLayoutConstraint.activate([
+            field.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+            field.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -2),
+            field.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+        ])
+        return cell
+    }
+
     /// Esc closes the Archive (an open Card's sheet gets Esc first and closes itself).
     override func cancelOperation(_ sender: Any?) {
         view.window?.performClose(sender)
     }
 
     @objc private func openClicked(_ sender: Any?) {
-        guard table.clickedRow >= 0 else { return }
-        open(cards[table.clickedRow])
+        guard rows.indices.contains(table.clickedRow) else { return }
+        open(rows[table.clickedRow])
     }
 
     private func openSelected() {
-        guard table.selectedRow >= 0 else { return }
-        open(cards[table.selectedRow])
+        guard rows.indices.contains(table.selectedRow) else { return }
+        open(rows[table.selectedRow])
     }
 
-    private func open(_ archived: ArchivedCard) {
-        guard presentedViewControllers?.isEmpty ?? true else { return }
-        presentAsSheet(CardSheetViewController(mode: archived.outcome == .done ? .readOnly(archived.card) : .discarded(archived.card)))
+    /// Read-only: "Done Card" or "Discarded Card", by the section it's in.
+    private func open(_ row: Row) {
+        guard case let .card(archived, section) = row, presentedViewControllers?.isEmpty ?? true else { return }
+        presentAsSheet(CardSheetViewController(mode: section == .done ? .readOnly(archived.card) : .discarded(archived.card)))
     }
 }
 
