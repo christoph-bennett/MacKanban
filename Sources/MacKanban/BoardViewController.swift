@@ -4,7 +4,8 @@ import KanbanCore
 /// The three Columns side by side, each listing its Cards. A clicked Card is
 /// selected, and a click anywhere else on the Board clears the selection;
 /// ⌘→ and ⌘← (the Card menu) or dragging move it between Columns.
-/// Its pencil, a double-click or Return opens it; ⌘⌫ or its context menu Discards it.
+/// Its pencil, a double-click or Return opens it; ⌘⌫ or its context menu Discards
+/// it, or archives it if it's a Done Card (spec 0003).
 /// Esc closes the window; the selection is still there when it comes back.
 @MainActor
 final class BoardViewController: NSViewController, NSMenuItemValidation {
@@ -41,6 +42,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             view.dropRefusal = { [weak self] card, column in try? self?.board.moveRefusal(card, to: column) }
             view.onOpen = { [weak self] card in self?.open(card) }
             view.onDiscard = { [weak self] card in self?.discard(card) }
+            view.onArchive = { [weak self] card in self?.archive(card) }
         }
         view = columns
         reload()
@@ -178,9 +180,20 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
     }
 
     private func discard(_ id: UUID) {
+        takeOffBoard("Discard") { [board] in try board.discard(id) }
+    }
+
+    /// Sends a Done Card to the Archive before the Archive Delay is up (ADR 0007).
+    private func archive(_ id: UUID) {
+        takeOffBoard("Archive") { [board] in try board.archiveCard(id) }
+    }
+
+    /// Discard or Archive, from ⌘⌫ or a context menu; never while a sheet is open,
+    /// as the Card menu's item is disabled then. The reload drops the selection.
+    private func takeOffBoard(_ actionName: String, _ operation: @escaping () throws -> Change) {
+        guard !isShowingSheet else { return }
         do {
-            try undoably("Discard") { [board] in try board.discard(id) }
-            if selectedCard == id { selectedCard = nil }
+            try undoably(actionName, operation)
             reload()
         } catch {
             show(error)
@@ -327,8 +340,11 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         selectedCard.map(open)
     }
 
-    @objc func discardCard(_ sender: Any?) {
-        selectedCard.map(discard)
+    /// ⌘⌫: takes the selected Card off the Board. An Open Card is Discarded, a
+    /// Done Card archived; the menu item's title says which.
+    @objc func discardOrArchiveCard(_ sender: Any?) {
+        guard let id = selectedCard else { return }
+        selectedColumn == .done ? archive(id) : discard(id)
     }
 
     /// Only redraws the selection: rebuilding the Card views would replace the
@@ -388,6 +404,8 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             do {
                 try controller.undoably(actionName, redo)
                 controller.reload()
+            } catch BoardError.cardIsArchived {
+                controller.reload()  // redoing an archive after the Archive Delay took the Card anyway
             } catch {
                 controller.show(error)
             }
@@ -437,16 +455,20 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         if menuItem.action == #selector(editCard(_:)) {
             menuItem.title = selectedColumn == .done ? "Open Card" : "Edit Card…"  // a Done Card only shows, so no "…"
         }
+        if menuItem.action == #selector(discardOrArchiveCard(_:)) {
+            menuItem.title = selectedColumn == .done ? "Archive Card" : "Discard Card"
+        }
         if isShowingSheet,
            [#selector(moveToNextColumn(_:)), #selector(moveToPreviousColumn(_:)), #selector(editCard(_:)),
-            #selector(discardCard(_:))].contains(menuItem.action) {
+            #selector(discardOrArchiveCard(_:))].contains(menuItem.action) {
             return false
         }
         return switch menuItem.action {
         case #selector(moveToNextColumn(_:)): column(by: 1) != nil
         case #selector(moveToPreviousColumn(_:)): column(by: -1) != nil
         case #selector(editCard(_:)): selectedColumn != nil && !selectedIsSample
-        case #selector(discardCard(_:)): selectedColumn == .backlog || selectedColumn == .doing
+        case #selector(discardOrArchiveCard(_:)): selectedColumn == .backlog || selectedColumn == .doing
+            || (selectedColumn == .done && !selectedIsSample)
         default: true
         }
     }
@@ -484,6 +506,7 @@ private final class ColumnView: NSView {
     var dropRefusal: ((_ card: UUID, _ column: Column) -> BoardError?)?
     var onOpen: ((UUID) -> Void)?
     var onDiscard: ((UUID) -> Void)?
+    var onArchive: ((UUID) -> Void)?
     private let cards = NSStackView()
     private let count = NSTextField(labelWithString: "")
     private var cardIDs: [UUID] { cards.arrangedSubviews.compactMap { ($0 as? CardView)?.card.id } }
@@ -563,6 +586,7 @@ private final class ColumnView: NSView {
             view.onSelect = { [weak self] in self?.onSelect?(card.id) }
             view.onOpen = { [weak self] in self?.onOpen?(card.id) }
             view.onDiscard = { [weak self] in self?.onDiscard?(card.id) }
+            view.onArchive = { [weak self] in self?.onArchive?(card.id) }
             view.onMove = { [weak self] column in self?.onDrop?(card.id, column) }  // same move as a drop
             self.cards.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: self.cards.widthAnchor, constant: -24).isActive = true
@@ -661,6 +685,8 @@ private final class CardView: NSView, NSDraggingSource {
     var onOpen: (() -> Void)?
     /// Offered only while the Card is editable: Done Cards can't be Discarded.
     var onDiscard: (() -> Void)?
+    /// Offered only for a Done Card that isn't a Sample Card (ADR 0007).
+    var onArchive: (() -> Void)?
     /// Moves the Card to the Column the context menu chose.
     var onMove: ((Column) -> Void)?
     let card: Card
@@ -853,12 +879,19 @@ private final class CardView: NSView, NSDraggingSource {
         if isEditable {
             menu.addItem(.separator())  // Discard apart from the rest
             menu.addItem(withTitle: "Discard", action: #selector(discardFromMenu(_:)), keyEquivalent: "").target = self
+        } else if column == .done, !card.isSample {
+            menu.addItem(.separator())  // where an Open Card has Discard
+            menu.addItem(withTitle: "Archive", action: #selector(archiveFromMenu(_:)), keyEquivalent: "").target = self
         }
         return menu.items.isEmpty ? nil : menu  // a Done Sample Card offers nothing
     }
 
     @objc private func discardFromMenu(_ sender: Any?) {
         onDiscard?()
+    }
+
+    @objc private func archiveFromMenu(_ sender: Any?) {
+        onArchive?()
     }
 
     @objc private func moveFromMenu(_ sender: NSMenuItem) {

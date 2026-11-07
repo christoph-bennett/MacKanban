@@ -9,6 +9,8 @@ public struct Event: Equatable, Sendable {
         case edited
         case discarded
         case triaged
+        /// The user sent a Done Card to the Archive before the Archive Delay was up (ADR 0007).
+        case archived
         case wipLimitChanged
         case creationBlocked
     }

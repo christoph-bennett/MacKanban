@@ -41,8 +41,8 @@ enum MainMenu {
                      keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
         card.addItem(.separator())
         card.addItem(withTitle: "Edit Card…", action: #selector(BoardViewController.editCard(_:)), keyEquivalent: "")
-        // ⌘⌫ as in Finder's Move to Trash.
-        card.addItem(withTitle: "Discard Card", action: #selector(BoardViewController.discardCard(_:)),
+        // ⌘⌫ as in Finder's Move to Trash. "Archive Card" while a Done Card is selected.
+        card.addItem(withTitle: "Discard Card", action: #selector(BoardViewController.discardOrArchiveCard(_:)),
                      keyEquivalent: String(UnicodeScalar(NSBackspaceCharacter)!))
         main.addItem(submenu: card, title: "Card")
 

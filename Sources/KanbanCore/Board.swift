@@ -49,6 +49,10 @@ public enum BoardError: LocalizedError, Equatable {
     case wipLimitOutOfRange
     case archiveDelayNotOffered
     case cardIsDone
+    case cardIsNotDone
+    case cardIsArchived
+    case sampleCardCantBeArchived
+    case archiveDelayIsUp
     case sampleCardIsReadOnly
     case sampleCardsNeedEmptyBoard
     case cannotUndo
@@ -65,6 +69,10 @@ public enum BoardError: LocalizedError, Equatable {
         case let .moveNotAllowed(from, to): "Cards can't move from \(from.title) to \(to.title)."
         case let .wipLimitReached(limit): "Doing is at its WIP Limit of \(limit). Finish a Card before starting another."
         case .cardIsDone: "Done Cards stay as they were finished."
+        case .cardIsNotDone: "Only Done Cards can be archived. Finish the Card first, or Discard it."
+        case .cardIsArchived: "The Card is already in the Archive."
+        case .sampleCardCantBeArchived: "Sample Cards go to the Archive on their own, after the Archive Delay."
+        case .archiveDelayIsUp: "The Card has been in Done longer than the Archive Delay by now, so it stays in the Archive."
         case .sampleCardIsReadOnly: "Sample Cards can't be edited. Create your own Card instead."
         case .sampleCardsNeedEmptyBoard: "Sample Cards can only be added while the Board has no Open Cards and no Sample Cards."
         case .cardExists: "A Card with this ID already exists."
@@ -222,6 +230,21 @@ public final class Board {
         return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
     }
 
+    /// Sends a Done Card to the Archive before the Archive Delay is up, recorded as
+    /// an Archived Card Event (ADR 0007). Throughput doesn't change: it counts the
+    /// Card from when it entered Done. Sample Cards only leave after the delay.
+    @discardableResult
+    public func archiveCard(_ id: UUID) throws -> Change {
+        let card = try anyCard(id)
+        let visits = Self.visits(of: card)
+        guard let column = Self.column(after: visits) else { throw BoardError.cardNotFound }  // Discarded
+        guard column == .done else { throw BoardError.cardIsNotDone }
+        guard !isArchived(visits, at: now()) else { throw BoardError.cardIsArchived }
+        guard !SampleCards.isSample(id) else { throw BoardError.sampleCardCantBeArchived }
+        let event = try change { try record(.archived, for: card) }
+        return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
+    }
+
     /// The Archive Delays the user can choose, in days (spec 0003). Not a rule:
     /// Throughput counts Done Cards wherever they are (ADR 0007).
     public nonisolated static let archiveDelays = [1, 2, 3, 5, 7]
@@ -241,13 +264,14 @@ public final class Board {
 
     /// Undoes `change` by deleting the event it recorded, so the slip never shows up
     /// in the history (ADR 0002). Refused once the Card has moved on since (its
-    /// Column history has a newer event; Edited and Triaged events don't count), after
-    /// `undoWindow`, or when it would put Doing over the WIP Limit.
+    /// Column history, or its archiving, has a newer event; Edited and Triaged events don't count), after
+    /// `undoWindow`, when it would put Doing over the WIP Limit, or when undoing an
+    /// archive wouldn't bring the Card back because the Archive Delay is up by now.
     public func revert(_ change: Change) throws {
         let card = try anyCard(change.cardID)
         let history = Self.history(of: card)
         let placing = history.filter {
-            [Event.Kind.created, .moved, .discarded].map(\.rawValue).contains($0.value(forKey: "kind") as? String)
+            [Event.Kind.created, .moved, .discarded, .archived].map(\.rawValue).contains($0.value(forKey: "kind") as? String)
         }
         guard let event = placing.last, event.objectID.uriRepresentation() == change.event,
               !change.isCreation || placing.count == 1,
@@ -255,7 +279,11 @@ public final class Board {
         else { throw BoardError.cannotUndo }
 
         let companions = history.filter { change.companions.contains($0.objectID.uriRepresentation()) }
-        let restored = Self.column(after: Self.visits(of: history.filter { $0 != event }))
+        let restoredVisits = Self.visits(of: history.filter { $0 != event })
+        if event.value(forKey: "kind") as? String == Event.Kind.archived.rawValue, isArchived(restoredVisits, at: now()) {
+            throw BoardError.archiveDelayIsUp
+        }
+        let restored = Self.column(after: restoredVisits)
         if restored == .doing, Self.column(of: card) != .doing, try wipStatus().count >= wipLimit {
             throw BoardError.wipLimitReached(limit: wipLimit)
         }
@@ -557,11 +585,12 @@ public final class Board {
         }
     }
 
-    /// Whether the Card is a Done Card that has left the Board for the Archive:
-    /// `archiveDelay` days after entering Done, never recorded (ADR 0002).
+    /// Whether the Card is a Done Card that has left the Board for the Archive: sent
+    /// there by hand (an Archived event, ADR 0007), or `archiveDelay` days after
+    /// entering Done, which is never recorded (ADR 0002).
     private func isArchived(_ visits: [ColumnVisit], at now: Date) -> Bool {
         guard let last = visits.last, last.column == .done, last.left == nil else { return false }
-        return now.timeIntervalSince(last.entered) >= TimeInterval(archiveDelay) * 86_400
+        return last.archivedByHand || now.timeIntervalSince(last.entered) >= TimeInterval(archiveDelay) * 86_400
     }
 
     /// Where the Card is now, or `nil` once it's Discarded.
@@ -576,7 +605,7 @@ public final class Board {
         return last.left == nil ? last.column : nil
     }
 
-    /// The Card's Column Visits, replayed from its Created, Moved and Discarded
+    /// The Card's Column Visits, replayed from its Created, Moved, Discarded and Archived
     /// events. Discarding ends the last visit without starting another.
     private static func visits(of card: NSManagedObject) -> [ColumnVisit] {
         visits(of: history(of: card))
@@ -596,6 +625,8 @@ public final class Board {
                 visits.append(ColumnVisit(column: to, entered: time))
             case .discarded:
                 if !visits.isEmpty { visits[visits.count - 1].left = time }
+            case .archived:  // marks the Done visit it follows; not a change of Column
+                if let last = visits.last, last.column == .done, last.left == nil { visits[visits.count - 1].archivedByHand = true }
             case .edited, .triaged, .wipLimitChanged, .creationBlocked, nil:
                 continue
             }

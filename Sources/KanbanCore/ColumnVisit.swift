@@ -7,6 +7,9 @@ struct ColumnVisit: Equatable {
     let entered: Date
     /// `nil` while the Card is still in the Column.
     var left: Date?
+    /// A Done visit the user ended early by archiving the Card (ADR 0007). The
+    /// Card stays in Done as far as its history goes: archiving isn't a move.
+    var archivedByHand = false
 }
 
 extension [ColumnVisit] {
