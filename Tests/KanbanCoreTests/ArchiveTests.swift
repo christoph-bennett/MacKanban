@@ -38,6 +38,19 @@ struct ArchiveTests {
         #expect(try board.events() == events)  // archiving follows from the rule, it isn't recorded
     }
 
+    @Test func aDoneCardsAgeIsHowLongItHasBeenInDoneWithoutUrgency() throws {
+        let id = try board.createCard(title: "Shipped", notes: "").cardID
+        clock.advance(days: 5)
+        try board.move(id, to: .doing)
+        clock.advance(days: 2)
+        try board.move(id, to: .done)
+        clock.advance(days: 1.5)
+
+        let card = try #require(try board.cards(in: .done).first)
+        #expect(abs(try #require(card.age) - 1.5 * 86_400) < 1)  // time in Done, not its 8.5-day Card Age
+        #expect(card.urgency == 0)
+    }
+
     @Test func aDoneCardLeavesTheBoardOnceTheChosenArchiveDelayIsUp() throws {
         let board = try Board(storeURL: nil, now: { [clock] in clock.now }, archiveDelay: 7)
         let id = try finish("Shipped", on: board)

@@ -9,4 +9,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 03 | [Archive All Done Cards](03-archive-all-done-cards.md) | 02 | done |
 | 04 | [Archive window with Done and Discarded sections](04-archive-sections.md) | none | done |
 | 05 | [Counts column](05-counts-column.md) | 04 | done |
-| 06 | [Age label on Done Cards](06-age-label-on-done-cards.md) | none | ready-for-agent |
+| 06 | [Age label on Done Cards](06-age-label-on-done-cards.md) | none | done |

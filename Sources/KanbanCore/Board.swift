@@ -8,8 +8,8 @@ public struct Card: Equatable, Identifiable, Sendable {
     public let notes: String
     /// From 0 (neutral) to 1 (full red); always 0 in Done (ADR 0001).
     public let urgency: Double
-    /// What the Card's age label shows: Card Age in Backlog, Column Age in Doing,
-    /// `nil` in Done.
+    /// What the Card's age label shows: Card Age in Backlog, Column Age in Doing and
+    /// in Done (archive ticket 06); `nil` for a Card read from the Archive.
     public let age: TimeInterval?
 }
 
@@ -520,11 +520,12 @@ public final class Board {
             if isArchived(visits, at: now) { return nil }
             let created = visits.first?.entered ?? now
             let timeInDoing = visits.timeSpent(in: .doing, until: now)
+            let lastEntered = visits.last?.entered ?? now  // for Done: when it got there (nothing leaves Done)
             // The age the Card's label shows, and the ascending sort key for its Column.
             let (age, key): (TimeInterval?, TimeInterval) = switch column {
             case .backlog: (max(0, now.timeIntervalSince(created)), created.timeIntervalSinceReferenceDate)
             case .doing: (timeInDoing, -timeInDoing)
-            case .done: (nil, -(visits.last?.entered ?? now).timeIntervalSinceReferenceDate)
+            case .done: (max(0, now.timeIntervalSince(lastEntered)), -lastEntered.timeIntervalSinceReferenceDate)  // a label only, no Urgency
             }
             guard let card = Self.card(object, in: column, age: age) else { return nil }
             return (card, column, key)
@@ -716,7 +717,7 @@ public final class Board {
         return Card(id: id,
                     title: object.value(forKey: "title") as? String ?? "",
                     notes: object.value(forKey: "notes") as? String ?? "",
-                    urgency: age.map { Urgency.of(age: $0, in: column) } ?? 0,
+                    urgency: column == .done ? 0 : age.map { Urgency.of(age: $0, in: column) } ?? 0,  // never in Done (ADR 0001)
                     age: age)
     }
 }

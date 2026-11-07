@@ -69,7 +69,7 @@ struct UrgencyTests {
         #expect(try card(id, in: .done).urgency == 0)
     }
 
-    @Test func theAgeLabelShowsCardAgeInBacklogAndColumnAgeInDoing() throws {
+    @Test func theAgeLabelShowsCardAgeInBacklogAndColumnAgeInDoingAndDone() throws {
         let id = try create("Labelled")
         clock.advance(days: 12)
         #expect(try card(id, in: .backlog).age == 12 * 86_400)
@@ -79,6 +79,7 @@ struct UrgencyTests {
         #expect(try card(id, in: .doing).age == 4 * 86_400)
 
         try board.move(id, to: .done)
-        #expect(try card(id, in: .done).age == nil)
+        clock.advance(days: 1)
+        #expect(try card(id, in: .done).age == 86_400)  // time in Done (archive ticket 06)
     }
 }
