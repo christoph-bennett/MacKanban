@@ -11,6 +11,7 @@ Ideas and requirements not yet built. New items go to **Inbox**. Once triaged th
 Everything in [spec 0001](./docs/specs/0001-mvp.md), including **Sample Cards** (user stories 49–53, ADR 0005, ticket 12; grilled 2026-10-26).
 
 - **Global New Card hotkey** from any app, going through Triage and the Capacity block like the sheet. Deferred 2026-10-23. A global hotkey that shows the Board came first (2026-11-05, [spec 0002](./docs/specs/0002-show-board-hotkey.md)); it brings in KeyboardShortcuts (ADR 0006), which this item would reuse. Asked for again 2026-11-07 as a second recorder in Settings > Shortcuts, beside Show Board, and moved from Later to MVP. Decided the same day: it brings the Board forward with the New Card sheet, no panel of its own. Ticket 17.
+- **Info icon beside "Counts" in the Archive** (requested 2026-11-07): a small ⓘ next to the column title; hovering it shows a short explanation in plain words, not technical. Draft: "Finished Cards give you room for new ones for 14 days. The bar shows how much of that time is left. After that, the Card stays here but no longer gives you room." Follow-up to spec 0003, ticket 05.
 
 ## Later
 
