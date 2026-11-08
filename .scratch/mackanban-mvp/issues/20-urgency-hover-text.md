@@ -18,11 +18,11 @@ The age is in whole days ("1 day", "6 days"), in hours under a day ("5 hours", "
 - [x] Done Cards show no hover text
 - [x] The numbers 7 and 21 come from the Urgency rules, so changing a threshold changes the text
 - [x] Board test (or a unit test at the text's seam) for the wording: Backlog and Doing, a day and several days, hours, under an hour
-- [ ] Hover checked with a real mouse on a sample store (a Backlog and a Doing Card); Christoph checks by hand (sample store done)
+- [x] Hover checked with a real mouse on a sample store (a Backlog and a Doing Card); Christoph checks by hand
 
 **Notes from implementing:**
 - The text is built in the Board's core, next to the Urgency rules, so the 7 and 21 days come from the same thresholds that colour the Card, and the wording is tested at the Board seam: six tests (Doing, Backlog, one day, hours, under an hour, Done). The age is whole days or hours, rounded down; the age label and the hover text now share one measurement, so they can't drift apart.
 - Found while checking by hand: no hover text showed at all, not even the pencil's "Edit (Return)" once the Card had been hovered. The Card removed every tracking area on each update, including the one AppKit keeps for the hover text: the same bug the pencil had (fixed 2026-11-07). The Card now removes only its own.
 - Checked on a sample store with a real mouse (cliclick): "Draft the talk" (hovered over its title) shows "4 days in Doing. Cards in Doing turn fully red after 7 days, in Backlog after 21.", "Book the dentist" shows "12 days old. Cards in Backlog turn fully red after 21 days, in Doing after 7.", the pencil still shows "Edit (Return)", a Done Card shows nothing. With the age labels hidden: the hover text is set regardless of that setting (by reading the code; not switched by hand).
 - Review (medium) fixes: one shared age measurement for the label and the hover text; "after 1 day" singular should a threshold ever be a day; a guard that could never fail folded away. Kept: the wording in the Board's core (so it's testable; the app target has no tests); the Card's hover text restarts when the Board redraws (the minute refresh, a click), as the pencil's always has; the "only my own tracking area" fix copied in two views rather than a shared base class.
-- Christoph's hand check still to come.
+- Checked by hand by Christoph on 2026-11-08.
