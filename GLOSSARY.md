@@ -37,7 +37,7 @@ One stretch of time a Card spent in a Column, from when it entered to when it le
 _Avoid_: Transition, move, history entry
 
 **Card Event**:
-A recorded fact about one Card at a point in time: Created, Moved (from one Column to another), Edited, Discarded, Triaged (with its outcome) or Archived (the user sent a Done Card to the Archive before the Archive Delay was up). A Card's Card Events are its complete history. Edited records only that an edit happened, not what changed. A Done Card leaving the Board once the Archive Delay is up is not a Card Event, because it follows from a rule rather than happening.
+A recorded fact about one Card at a point in time: Created, Moved (from one Column to another), Edited, Discarded, Restored, Triaged (with its outcome) or Archived (the user sent a Done Card to the Archive before the Archive Delay was up). A Card's Card Events are its complete history. Edited records only that an edit happened, not what changed. A Done Card leaving the Board once the Archive Delay is up is not a Card Event, because it follows from a rule rather than happening.
 _Avoid_: Activity, log entry, change, transition
 
 **Board Event**:
@@ -51,6 +51,10 @@ _Avoid_: Active card, pending card
 **Discard**:
 Removing an Open Card from the Board on purpose because the work won't be done. It is recorded, but it isn't a completion.
 _Avoid_: Delete, cancel, abandon
+
+**Restore**:
+Bringing a Discarded Card back from the Archive, for example after Discarding it by mistake. The Card becomes an Open Card again with its ages unchanged, and it needs room in Capacity like a new Card. Done Cards can't be restored.
+_Avoid_: Undiscard, reopen, unarchive
 
 **Sample Card**:
 A Card the app adds to show how the Board works, rather than one the user created. While on the Board it ages, counts and records Card Events like any other Card, and it can be moved or Discarded, but not edited. Removing Sample Cards takes them and their whole history off the Board, leaving no trace.
