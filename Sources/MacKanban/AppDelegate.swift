@@ -39,6 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             let archive = ArchiveWindowController(board: model)
             archive.onRestore = { [weak board] in board?.reload() }  // the restored Card shows on the Board
+            archive.onNeedsTriage = { [weak self] card in
+                self?.showBoard()
+                self?.board?.restoreWithTriage(card)
+            }
             board.onStateChange = { [weak statusItem, weak archive] in
                 statusItem?.show($0)
                 archive?.reload()

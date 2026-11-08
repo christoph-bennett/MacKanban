@@ -51,6 +51,10 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate, NSWind
         boardView.reload()
     }
 
+    func restoreWithTriage(_ card: Card) {
+        boardView.restoreWithTriage(card)
+    }
+
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { BoardUndo.manager }
 
     /// Closes the Board as Esc does, handing back to the previous app if nothing else is open.

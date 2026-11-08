@@ -11,6 +11,12 @@ final class NewCardSheetController: NSViewController {
     var onTriage: ((TriageOutcome) throws -> Void)?
     /// Called with the title and notes; throwing keeps the sheet open.
     var onSave: ((_ title: String, _ notes: String) throws -> Void)?
+    /// Restoring this Card instead of creating one (restore ticket 02): after the
+    /// Triage, the sheet closes and `onRestore` runs, in place of the title step.
+    private let restoring: Card?
+    /// Why a Restore needs the Triage, in place of the creation wording.
+    private let restoreReason: String?
+    var onRestore: (() -> Void)?
 
     private let gate: CreationGate
     /// The triaged Card's Column (Triage can show a Card in Doing).
@@ -20,8 +26,11 @@ final class NewCardSheetController: NSViewController {
     private let startRefusal: BoardError?
     private var isAtTriage = false
 
-    init(gate: CreationGate, column: Column = .backlog, capacity: Capacity, startRefusal: BoardError?) {
+    init(gate: CreationGate, column: Column = .backlog, capacity: Capacity, startRefusal: BoardError?, restoring: Card? = nil,
+         restoreReason: String? = nil) {
         self.gate = gate
+        self.restoring = restoring
+        self.restoreReason = restoreReason
         self.column = column
         self.capacity = capacity
         self.startRefusal = startRefusal
@@ -59,11 +68,11 @@ final class NewCardSheetController: NSViewController {
 
     private func triageStep(for card: Card) -> NSView {
         isAtTriage = true
-        let heading = NSTextField(labelWithString: "Before you add a Card")
+        let heading = NSTextField(labelWithString: restoring.map { "Before you restore “\($0.title)”" } ?? "Before you add a Card")
         heading.font = .preferredFont(forTextStyle: .headline)
-        let reason = NSTextField(wrappingLabelWithString: card.urgency >= 1 && capacity.free > CreationGate.triageThreshold
+        let reason = NSTextField(wrappingLabelWithString: restoreReason ?? (card.urgency >= 1 && capacity.free > CreationGate.triageThreshold
             ? "Your most urgent Card is fully red. Decide about it first."
-            : "Capacity is nearly used up: \(capacity.free) of \(capacity.total) free. Decide about your most urgent Card first.")
+            : "Capacity is nearly used up: \(capacity.free) of \(capacity.total) free. Decide about your most urgent Card first."))
 
         let start = NSButton(title: "Start", target: self, action: #selector(start(_:)))
         let discard = NSButton(title: "Discard", target: self, action: #selector(discard(_:)))
@@ -101,7 +110,9 @@ final class NewCardSheetController: NSViewController {
             return
         }
         isAtTriage = false
-        showCardStep()
+        guard restoring != nil else { return showCardStep() }
+        dismiss(nil)
+        onRestore?()
     }
 
     // MARK: Blocked

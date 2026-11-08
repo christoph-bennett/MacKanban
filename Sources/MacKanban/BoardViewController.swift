@@ -139,6 +139,62 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         presentAsSheet(sheet)
     }
 
+    /// A Restore from the Archive that needs a Triage first (restore ticket 02): the
+    /// Triage sheet on the Board, then the Restore, checked again since starting or
+    /// Discarding a Card changes the room. Without room after all, the refusal shows here.
+    func restoreWithTriage(_ card: Card) {
+        guard !isShowingSheet, view.window?.attachedSheet == nil else { return NSSound.beep() }
+        do {
+            let gate = try board.restoreGate(card.id)
+            guard case let .triage(triaged) = gate.outcome else { return restoreAfterTriage(card) }
+            let column: Column = try board.cards(in: .doing).contains { $0.id == triaged.id } ? .doing : .backlog
+            let left = max(0, gate.free - gate.cost)
+            let reason = triaged.urgency >= 1 && left >= CreationGate.triageThreshold
+                ? "Your most urgent Card is fully red. Decide about it first."
+                : "“\(card.title)” takes up the room of " + (gate.cost == 1 ? "1 Card" : "\(gate.cost) Cards")
+                    + ", which leaves \(left) free. Decide about your most urgent Card first."
+            let sheet = NewCardSheetController(gate: .triage(triaged), column: column, capacity: try board.capacity(),
+                                               startRefusal: try board.moveRefusal(triaged.id, to: .doing), restoring: card,
+                                               restoreReason: reason)
+            sheet.onTriage = { [weak self] outcome in try self?.triage(triaged.id, outcome) }
+            sheet.onRestore = { [weak self] in
+                // After the sheet has left the window, so a refusal can show as a sheet.
+                DispatchQueue.main.async { self?.restoreAfterTriage(card) }
+            }
+            presentAsSheet(sheet)
+        } catch {
+            show(error)
+        }
+    }
+
+    private func restoreAfterTriage(_ card: Card) {
+        do {
+            let gate = try board.restoreGate(card.id)
+            if case let .blocked(cardsToFree) = gate.outcome {
+                guard let window = view.window, window.attachedSheet == nil else {
+                    return show(BoardError.restoreBlocked(cost: gate.cost, free: gate.free, cardsToFree: cardsToFree))
+                }
+                return RestoreRefusal.alert(card, gate: gate, cardsToFree: cardsToFree).beginSheetModal(for: window)
+            }
+            let change = try board.restore(card.id, afterTriage: true)
+            reload()
+            // Undo takes the Restore back; redo goes through the gate again, Triage and all.
+            view.window?.undoManager?.registerUndo(withTarget: self) { controller in
+                do {
+                    try controller.board.revert(change)
+                } catch {
+                    return controller.show(error)
+                }
+                controller.reload()
+                controller.view.window?.undoManager?.registerUndo(withTarget: controller) { $0.restoreWithTriage(card) }
+                controller.view.window?.undoManager?.setActionName("Restore")
+            }
+            view.window?.undoManager?.setActionName("Restore")
+        } catch {
+            show(error)
+        }
+    }
+
     /// The New Card sheet whose closing also closes the Board (New Card hotkey).
     private weak var handsBackAfter: NSViewController?
 

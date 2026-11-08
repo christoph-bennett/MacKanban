@@ -40,6 +40,12 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { BoardUndo.manager }
 
+    /// A Restore that needs a Triage first: the Board does it (restore ticket 02).
+    var onNeedsTriage: ((Card) -> Void)? {
+        get { archive.onNeedsTriage }
+        set { archive.onNeedsTriage = newValue }
+    }
+
     /// After a change on the Board: a Discard shows up here straight away.
     func reload() {
         guard let window, window.isVisible || window.isMiniaturized else { return }
@@ -51,6 +57,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate {
 private final class ArchiveViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
     private let board: Board
     var onRestore: (() -> Void)?
+    var onNeedsTriage: ((Card) -> Void)?
     /// The Archive's two sections, in the order shown (spec 0003).
     private enum Section: CaseIterable {
         case done, discarded
@@ -302,14 +309,9 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
             case .open:
                 try restoreUndoably(card)
             case let .blocked(cardsToFree):
-                Self.refusal(card, gate: gate, cardsToFree: cardsToFree).beginSheetModal(for: window)
+                RestoreRefusal.alert(card, gate: gate, cardsToFree: cardsToFree).beginSheetModal(for: window)
             case .triage:
-                // Until Triage comes to Restore (restore ticket 02), never go around it.
-                let alert = NSAlert()
-                alert.messageText = "Capacity is nearly used up"
-                alert.informativeText = "Restoring “\(card.title)” now would need a Triage first, which comes in a later version. "
-                    + "Finish or Discard a Card, then try again."
-                alert.beginSheetModal(for: window)
+                onNeedsTriage?(card)  // the Board comes forward with the Triage, then restores
             }
         } catch {
             NSAlert(error: error).beginSheetModal(for: window)
@@ -340,25 +342,6 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
     private func showError(_ error: Error) {
         guard let window = view.window, window.attachedSheet == nil else { return NSSound.beep() }
         NSAlert(error: error).beginSheetModal(for: window)
-    }
-
-    /// Why a Free slot on the Board isn't enough (spec 0005, story 18).
-    static func refusal(_ card: Card, gate: RestoreGate, cardsToFree: Int) -> NSAlert {
-        func count(_ n: Int) -> String { n == 1 ? "1 Card" : "\(n) Cards" }
-        let age = switch AgeAmount(gate.age) {
-        case .underAnHour: "less than an hour"
-        case let .hours(n): n == 1 ? "1 hour" : "\(n) hours"
-        case let .days(n): n == 1 ? "1 day" : "\(n) days"
-        }
-        let urgency = gate.urgency.formatted(.number.precision(.fractionLength(1)))
-        let cost = gate.cost == 1 ? "It takes up the room of 1 Card."
-            : "It's \(age) old, so it takes up the room of \(count(gate.cost)): 1 for the Card and \(urgency) for its age"
-                + (abs(Double(gate.cost - 1) - gate.urgency) < 0.05 ? "." : ", counted in whole Cards as Capacity counts.")
-        let room = gate.free > 0 ? "The Board has room for \(count(gate.free))." : "The Board has no room left."
-        let alert = NSAlert()
-        alert.messageText = "No room to restore “\(card.title)”"
-        alert.informativeText = "\(cost) \(room) Finish or Discard \(count(cardsToFree)) first."
-        return alert
     }
 
     /// Esc closes the Archive (an open Card's sheet gets Esc first and closes itself).
@@ -527,5 +510,28 @@ private final class CountsHeaderView: NSTableHeaderView {
         }
         info.setAccessibilityFrameInParentSpace(headerRect(ofColumn: index))  // follows resizing and moving
         return (super.accessibilityChildren() ?? []) + [info]
+    }
+}
+
+/// Why a free slot on the Board isn't enough for a Restore (spec 0005, story 18):
+/// shown by the Archive, and by the Board when a Triage left no room.
+@MainActor
+enum RestoreRefusal {
+    static func alert(_ card: Card, gate: RestoreGate, cardsToFree: Int) -> NSAlert {
+        func count(_ n: Int) -> String { n == 1 ? "1 Card" : "\(n) Cards" }
+        let age = switch AgeAmount(gate.age) {
+        case .underAnHour: "less than an hour"
+        case let .hours(n): n == 1 ? "1 hour" : "\(n) hours"
+        case let .days(n): n == 1 ? "1 day" : "\(n) days"
+        }
+        let urgency = gate.urgency.formatted(.number.precision(.fractionLength(1)))
+        let cost = gate.cost == 1 ? "It takes up the room of 1 Card."
+            : "It's \(age) old, so it takes up the room of \(count(gate.cost)): 1 for the Card and \(urgency) for its age"
+                + (abs(Double(gate.cost - 1) - gate.urgency) < 0.05 ? "." : ", counted in whole Cards as Capacity counts.")
+        let room = gate.free > 0 ? "The Board has room for \(count(gate.free))." : "The Board has no room left."
+        let alert = NSAlert()
+        alert.messageText = "No room to restore “\(card.title)”"
+        alert.informativeText = "\(cost) \(room) Finish or Discard \(count(cardsToFree)) first."
+        return alert
     }
 }

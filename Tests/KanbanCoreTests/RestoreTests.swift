@@ -197,4 +197,41 @@ struct RestoreTests {
         try board.restore(red, afterTriage: true)
         #expect(try board.cards(in: .backlog).contains { $0.id == red })
     }
+
+    @Test func afterATriageTheGateIsCheckedAgain() throws {
+        let red = try discarded("Old", daysOld: 0)
+        let stale = try create("Stale and open")
+        clock.advance(days: 21)  // both fully red now; the open one asks for a Triage
+        let triaged = try #require(try board.cards(in: .backlog).first { $0.id == stale })
+        #expect(try board.restoreGate(red).outcome == .triage(triaged))
+
+        try board.triage(stale, outcome: .discarded)
+
+        #expect(try board.restoreGate(red).outcome == .open)
+        try board.restore(red)  // no Triage needed any more
+    }
+
+    @Test func keepingTheCardInTheTriageStillLetsTheRestoreThrough() throws {
+        let red = try discarded("Old", daysOld: 0)
+        let stale = try create("Stale and open")
+        clock.advance(days: 21)
+
+        try board.triage(stale, outcome: .kept)
+
+        #expect(throws: BoardError.restoreNeedsTriage) { try board.restore(red) }  // still asks
+        try board.restore(red, afterTriage: true)
+        #expect(try board.cards(in: .backlog).contains { $0.id == red })
+    }
+
+    @Test func whenTheRoomIsGoneByTheTimeTheTriageIsDoneTheRestoreIsBlocked() throws {
+        let red = try discarded("Old", daysOld: 21)
+        let open = try (1...3).map { try create("Open \($0)") }  // fresh: after the Restore, 0 slots left
+        #expect(try board.restoreGate(red).outcome == .triage(try #require(try board.cards(in: .backlog).first { $0.id == open[0] })))
+
+        try board.triage(open[0], outcome: .kept)
+        clock.advance(days: 7)  // the open Cards age while the sheet is up
+
+        guard case .blocked = try board.restoreGate(red).outcome else { Issue.record("expected blocked"); return }
+        #expect(throws: BoardError.self) { try board.restore(red, afterTriage: true) }
+    }
 }
