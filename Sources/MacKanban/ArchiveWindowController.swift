@@ -95,7 +95,12 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         for (id, title, width) in [(ColumnID.title, "Card", 200.0), (ColumnID.created, "Created", 110),
                                    (ColumnID.ended, "Ended", 160), (ColumnID.counts, "Counts", 140)] {
             let column = NSTableColumn(identifier: id)
-            column.title = title
+            if id == ColumnID.counts {
+                column.headerCell = InfoHeaderCell(title: title)
+                column.headerToolTip = InfoHeaderCell.countsExplanation  // over the whole header, ⓘ included
+            } else {
+                column.title = title
+            }
             column.width = width
             column.minWidth = id == ColumnID.counts ? 140 : 60  // the bar and "until Nov 10" stay whole
             column.resizingMask = id == ColumnID.title ? .autoresizingMask : .userResizingMask
@@ -105,6 +110,8 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
         table.usesAlternatingRowBackgroundColors = true
         table.style = .inset
+        // VoiceOver can read the ⓘ; the header keeps the size AppKit gave it for this style.
+        table.headerView = CountsHeaderView(frame: table.headerView?.frame ?? .zero, countsColumn: ColumnID.counts)
         table.allowsMultipleSelection = false
         table.dataSource = self
         table.delegate = self
@@ -359,5 +366,68 @@ private final class CountsCellView: NSTableCellView {
         label.stringValue = archived.isCounting ? "until \(date)" : "no longer"
         label.textColor = archived.isCounting ? .secondaryLabelColor : .tertiaryLabelColor
         label.setAccessibilityLabel(archived.isCounting ? "Counts toward Throughput until \(date)" : "No longer counts toward Throughput")
+    }
+}
+
+/// The Counts column's header: its title, then an ⓘ that explains the column in plain
+/// words (asked for 2026-11-07, archive ticket 07). The ⓘ is part of the title, so the
+/// header lays both out together. The column's header tooltip shows the explanation;
+/// for VoiceOver, `CountsHeaderView` adds it as an element of its own.
+private final class InfoHeaderCell: NSTableHeaderCell {
+    /// The 14 days are Capacity's Throughput window, the same the bars drain over.
+    static var countsExplanation: String {
+        "Done or Archived Cards each give you room for one more Card, for \(Capacity.throughputWindowDays) days after they moved to Done. "
+            + "The bar shows how much of that time is left. After that, the Card stays here but no longer gives you room."
+    }
+
+    /// The column's title is the cell's own text: setting `column.title` would drop the ⓘ.
+    convenience init(title: String) {
+        self.init(textCell: title)
+        let font = font ?? .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let config = NSImage.SymbolConfiguration(pointSize: font.pointSize, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [.secondaryLabelColor]))
+        guard let icon = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) else { return }
+        let attachment = NSTextAttachment()
+        attachment.image = icon
+        attachment.bounds = NSRect(x: 0, y: ((font.capHeight - icon.size.height) / 2).rounded(),
+                                   width: icon.size.width, height: icon.size.height)
+        // The thin space and the ⓘ take the title's font and paragraph, so the line stays as tall.
+        let attributes = attributedStringValue.length > 0 ? attributedStringValue.attributes(at: 0, effectiveRange: nil) : [.font: font]
+        let full = NSMutableAttributedString(attributedString: attributedStringValue)
+        full.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
+        let iconRun = NSMutableAttributedString(attachment: attachment)
+        iconRun.addAttributes(attributes, range: NSRange(location: 0, length: iconRun.length))
+        full.append(iconRun)
+        attributedStringValue = full
+        setAccessibilityTitle(title)  // VoiceOver reads "Counts", not the attachment's placeholder
+    }
+}
+
+/// The Archive's header, with one extra element for VoiceOver over the Counts header:
+/// "About Counts", whose value is the explanation the ⓘ shows on hover. AppKit's own
+/// header elements take no help text (tried, archive ticket 07).
+private final class CountsHeaderView: NSTableHeaderView {
+    private let countsColumn: NSUserInterfaceItemIdentifier
+    private let info = NSAccessibilityElement()
+
+    init(frame: NSRect, countsColumn: NSUserInterfaceItemIdentifier) {
+        self.countsColumn = countsColumn
+        super.init(frame: frame)
+        info.setAccessibilityRole(.staticText)
+        info.setAccessibilityLabel("About Counts")
+        info.setAccessibilityValue(InfoHeaderCell.countsExplanation)
+        info.setAccessibilityParent(self)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func accessibilityChildren() -> [Any]? {
+        guard let tableView, case let index = tableView.column(withIdentifier: countsColumn), index >= 0 else {
+            return super.accessibilityChildren()
+        }
+        info.setAccessibilityFrameInParentSpace(headerRect(ofColumn: index))  // follows resizing and moving
+        return (super.accessibilityChildren() ?? []) + [info]
     }
 }

@@ -5,8 +5,10 @@ import Foundation
 public struct Capacity: Equatable, Sendable {
     public nonisolated static let base = 5
     public nonisolated static let cap = 20
-    /// Throughput counts the Cards that entered Done within this long.
-    public nonisolated static let throughputWindow: TimeInterval = 14 * 86_400
+    /// Throughput counts the Cards that entered Done within this many days...
+    public nonisolated static let throughputWindowDays = 14
+    /// ...that is, within this long.
+    public nonisolated static let throughputWindow = TimeInterval(throughputWindowDays) * 86_400
 
     /// Cards that entered Done within `throughputWindow`; Discarded Cards don't count.
     public let throughput: Int

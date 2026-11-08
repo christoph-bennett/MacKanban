@@ -60,7 +60,7 @@ final class CapacityGauge: NSButton {
     /// including the rounding down and the cap.
     static func breakdown(of capacity: Capacity) -> String {
         let number = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(2))
-        let days = Int(Capacity.throughputWindow / 86_400)
+        let days = Capacity.throughputWindowDays
         let result = if capacity.unrounded > Double(Capacity.cap) {
             "= \(capacity.unrounded.formatted(number)), capped at \(Capacity.cap)"
         } else {
