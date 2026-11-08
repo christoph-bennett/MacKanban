@@ -4,4 +4,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 
 | # | Ticket | Blocked by | Status |
 |---|---|---|---|
-| 01 | [Clearer Capacity line and marked Doing Cards](01-clearer-menu-texts.md) | none | ready-for-agent |
+| 01 | [Clearer Capacity line and marked Doing Cards](01-clearer-menu-texts.md) | none | done |

@@ -77,4 +77,4 @@ The Doing Cards
 
 - The older wording lives on in ticket 11 of the MVP ("5 of 8 used, −2.4 from aging") as a record of what was built then.
 - Tickets go in `.scratch/menu-bar-menu/issues/`.
-- Decided on 2026-11-08 after a look at a sample store: the guillemet stays. VoiceOver's reading of it hasn't been listened to yet.
+- Decided on 2026-11-08 after a look at a sample store: the guillemet stays. Christoph also checked it with VoiceOver the same day.
