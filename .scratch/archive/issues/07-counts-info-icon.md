@@ -11,7 +11,7 @@
 - [x] VoiceOver reads the explanation for the ⓘ
 - [x] The Counts column keeps its width, the other column titles are unchanged, and the Discarded section has no ⓘ (it has no Counts column)
 - [x] The text's "14 days" comes from the same Throughput window as the bars, not a copy
-- [ ] Screenshots of the header in light and dark; hover checked with a real mouse on a sample store; Christoph checks by hand (screenshots and hover done)
+- [x] Screenshots of the header in light and dark; hover checked with a real mouse on a sample store; Christoph checks by hand
 
 **Notes from implementing:**
 - The ⓘ is part of the Counts header's title: the SF Symbol "info.circle" as a text attachment in secondary label colour, after a thin space, in the header's own font. A first version drew it beside the title itself and overlapped the "s": the inset table style draws header text 10 pt further in than the cell reports. As part of the title, AppKit lays out both together, and the ⓘ follows the column when it's resized or moved.
@@ -20,4 +20,4 @@
 - The Discarded section has no ⓘ of its own: the Archive has one header row above both sections.
 - Review (medium) fixes: the thin space and the ⓘ take the title's font; the replaced header view keeps the size AppKit gave it; the header setup simplified; one constant for the 14 days. Checked and not needed: switching to dark with the Archive open recolours the ⓘ (screenshot after a switch). Kept: the tooltip over the whole header; the VoiceOver element over the whole header rect (the ⓘ's own rect isn't known, see the first note).
 - Checked on a sample store (TEMP launch hooks, since removed): screenshots light and dark; a real mouse hover (cliclick) shows the text at 0.6 s. After forcing the app's appearance to dark from code, no hover text appeared, not even on the bars; without that switch it does. A side effect of the test hook, not of the ⓘ. 115 tests pass.
-- Christoph's hand check still to come.
+- Checked by hand by Christoph on 2026-11-08.
