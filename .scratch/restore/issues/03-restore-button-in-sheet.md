@@ -11,7 +11,7 @@
 - [x] The hover text shows the cost from the same computation as the gate, singular and plural, after MacKanban's usual 0.3 s
 - [x] Return and Esc keep closing the sheet
 - [x] VoiceOver reads the button with its cost, and the refusal
-- [ ] Screenshots light and dark on a sample store; hover with a real mouse; Christoph checks by hand (screenshots and hover done)
+- [x] Screenshots light and dark on a sample store; hover with a real mouse; Christoph checks by hand
 
 **Notes from implementing:**
 - A Discarded Card's read-only sheet in the Archive gets "Restore" beside Close, unless it's a Sample Card; Done Cards get none. Close stays the default (Return), Esc still closes. A click closes the sheet and runs the same Restore as the context menu: back at once, the refusal, or the Triage on the Board (02).
@@ -19,4 +19,4 @@
 - Checked on a sample store: the button in light and dark (screenshots), the hover text with a real mouse, VoiceOver's help through the accessibility tree, a click bringing the Triage to the Board, a Done Card's sheet without the button, Esc closing. After the review fixes, the help was read again from the accessibility tree (VLC was in front, so no mouse hover then).
 - Review (medium) fixes: the cost worked out on hover rather than when the sheet opens (it went stale, and every sheet paid for it); the button shows even if the cost can't be read, so a click explains; the offer is passed when the sheet is made; one "1 Card / 2 Cards" helper for the hover text, the refusal and the Triage reason; the rounding note in the hover text. Kept: the Restore runs one main-queue turn after the sheet closes (as the Triage's does); a sheet left open while the same Card is restored elsewhere shows the Board's error on a click.
 - No new Board tests: the Restore and its gate are 01's and tested there. 139 tests pass.
-- Christoph's hand check still to come.
+- Checked by hand by Christoph on 2026-11-08.
