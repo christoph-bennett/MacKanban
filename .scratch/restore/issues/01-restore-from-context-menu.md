@@ -17,7 +17,7 @@ The Board decides with a gate beside the creation gate: open, Triage, or blocked
 - [x] A refused Restore records no Card Event or Board Event (no Creation Blocked)
 - [x] Until 02: a Restore that would need a Triage is refused, never done without it
 - [x] Board tests: restore of Discarded, Done, Open and Sample Cards; ages; Archive query; Capacity; Undo inside and after the window; the gate open, Triage and blocked at the boundaries, with rounding; cost and cards-to-free
-- [ ] Checked on a sample store with real input: restore with room, a refusal, ⌘Z; Christoph checks by hand (sample store done)
+- [x] Checked on a sample store with real input: restore with room, a refusal, ⌘Z; Christoph checks by hand
 
 **Notes from implementing:**
 - Board: a Restored Card Event (a new kind value, no schema change) starts a new Backlog visit, so the Card is an Open Card again, Card Age runs from its creation and Doing Column Age adds up as always. A Card is Discarded while its last visit has ended without a new one; the Archive and Capacity read the same visits. `restoreGate` gives the outcome (open, Triage, blocked with the cards to free), the cost in slots, the Card's Urgency and age, and the free slots now; `restore` refuses Open, Done and Sample Cards, a blocked Restore, and one that needs a Triage unless the caller says it happened (for ticket 02). Undo deletes the Restored event within 15 minutes.
@@ -27,4 +27,4 @@ The Board decides with a gate beside the creation gate: open, Triage, or blocked
 - Review (medium) fixes: the Board itself refuses a Restore that needs a Triage (a redo or a later button can't go around it); a redo goes through the gate and shows the same sheets; one reload instead of two; "Finish or Discard 0 Cards" can't appear; the visits comment mentions Restored. Kept: Undo of a Restore lives in the Archive window, where it's done, so ⌘Z in the Board window doesn't take it back; the Archive's undo registration is its own small copy of the Board window's.
 - With fully red Cards on the Board, a Restore ends in the interim Triage sheet until 02 is done; on a real Board that's the usual case.
 - Fixed on 2026-11-08 after Christoph's check (the Restore worked, ⌘Z didn't): the Restore's undo lived only in the Archive window, so ⌘Z in the Board window, where the restored Card shows, or after closing the Archive did nothing for it. The Board and the Archive now share one undo history (Card sheets keep their own for text): ⌘Z takes back the last change in either window, in the order they happened. Checked on a sample store: Restore in the Archive, Archive closed, ⌘Z in the Board took the Restore back, a second ⌘Z the Discard before it. This replaces the "Kept" decision about undo above.
-- Christoph's hand check still to come.
+- Checked by hand by Christoph on 2026-11-08.
