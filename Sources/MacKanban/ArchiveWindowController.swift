@@ -5,7 +5,7 @@ import KanbanCore
 /// most recently ended first, read-only (spec 0003). A double-click or Return opens
 /// a Card; Esc closes the window.
 @MainActor
-final class ArchiveWindowController: NSWindowController {
+final class ArchiveWindowController: NSWindowController, NSWindowDelegate {
     private let archive: ArchiveViewController
 
     init(board: Board) {
@@ -17,6 +17,7 @@ final class ArchiveWindowController: NSWindowController {
         window.minSize = NSSize(width: 600, height: 240)  // room for the fixed columns and some of the title
         window.isReleasedWhenClosed = false
         super.init(window: window)
+        window.delegate = self
         window.setFrameAutosaveName("Archive")
         if !window.setFrameUsingName("Archive") { window.center() }
     }
@@ -36,6 +37,8 @@ final class ArchiveWindowController: NSWindowController {
         get { archive.onRestore }
         set { archive.onRestore = newValue }
     }
+
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { BoardUndo.manager }
 
     /// After a change on the Board: a Discard shows up here straight away.
     func reload() {
@@ -313,7 +316,7 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         }
     }
 
-    /// Restores and registers the undo with this window; undo and redo update the Board,
+    /// Restores and registers the undo in the Board's shared history; undo and redo update the Board,
     /// which reloads this window too. A redo goes through the gate again, like a click.
     private func restoreUndoably(_ card: Card) throws {
         let change = try board.restore(card.id)

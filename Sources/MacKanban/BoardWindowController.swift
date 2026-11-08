@@ -1,9 +1,17 @@
 import AppKit
 import KanbanCore
 
+/// One undo history for the Board and the Archive: ⌘Z takes back the last change
+/// in either window, whichever is in front (a Restore shows on the Board, restore
+/// ticket 01). Card sheets keep their own, for editing text.
+@MainActor
+enum BoardUndo {
+    static let manager = UndoManager()
+}
+
 /// The Board window: a toolbar with New Card above the three fixed Columns.
 @MainActor
-final class BoardWindowController: NSWindowController, NSToolbarDelegate {
+final class BoardWindowController: NSWindowController, NSToolbarDelegate, NSWindowDelegate {
     private let boardView: BoardViewController
     private let gauge = CapacityGauge()
     /// After every change shown in the window, for the menu bar extra.
@@ -19,6 +27,7 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
         window.isReleasedWhenClosed = false
         window.backgroundColor = BoardColors.window
         super.init(window: window)
+        window.delegate = self
 
         let toolbar = NSToolbar(identifier: "Board")
         toolbar.delegate = self
@@ -41,6 +50,8 @@ final class BoardWindowController: NSWindowController, NSToolbarDelegate {
     func reload() {
         boardView.reload()
     }
+
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { BoardUndo.manager }
 
     /// Closes the Board as Esc does, handing back to the previous app if nothing else is open.
     func closeAndHandBack() {
