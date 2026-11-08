@@ -23,4 +23,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 17 | [Global hotkey for a New Card](17-new-card-hotkey.md) | none | done |
 | 18 | [Esc closes Settings](18-esc-closes-settings.md) | none | done |
 | 19 | [A read-only Card looks read-only](19-read-only-card-sheet-looks-read-only.md) | none | done |
-| 20 | [Hover text on a Card explains its colour](20-urgency-hover-text.md) | none | ready-for-agent |
+| 20 | [Hover text on a Card explains its colour](20-urgency-hover-text.md) | none | done |

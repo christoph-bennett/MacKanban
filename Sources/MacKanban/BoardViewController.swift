@@ -755,6 +755,7 @@ private final class CardView: NSView, NSDraggingSource {
         let spokenAge = [card.isSample ? "sample" : nil, ageText].compactMap { $0 }.joined(separator: ", ")
         setAccessibilityLabel(spokenAge.isEmpty ? card.title : "\(card.title), \(spokenAge)")
         setAccessibilitySelected(isSelected)
+        toolTip = card.urgencyExplanation(in: column)  // why it's this colour (MVP 20); the pencil has its own
 
         let title = NSTextField(wrappingLabelWithString: card.title)
         title.font = .preferredFont(forTextStyle: .body)
@@ -838,12 +839,17 @@ private final class CardView: NSView, NSDraggingSource {
         onOpen?()
     }
 
+    /// The Card's own; AppKit keeps another for the hover text, which must stay (MVP 20).
+    private var hoverArea: NSTrackingArea?
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        for area in trackingAreas { removeTrackingArea(area) }
+        if let hoverArea { removeTrackingArea(hoverArea) }
         // Every Card grows under the pointer; only editable ones have the pencil.
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
-                                       owner: self, userInfo: nil))
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        hoverArea = area
         // A Card rebuilt under a still pointer (after a move, an edit or the minute
         // refresh) gets no mouseEntered, so check where the pointer is now.
         if let window, window.isKeyWindow {
@@ -1106,10 +1112,10 @@ extension Card {
     /// most of its life in Doing shows nearly the same number in both.
     func ageLabel(in column: Column) -> String? {
         guard let age else { return nil }
-        let text = switch age {
-        case ..<3_600: "<1h"
-        case ..<86_400: "\(Int(age / 3_600))h"
-        default: "\(Int(age / 86_400))d"
+        let text = switch AgeAmount(age) {  // measured as the hover text measures it (MVP 20)
+        case .underAnHour: "<1h"
+        case let .hours(n): "\(n)h"
+        case let .days(n): "\(n)d"
         }
         return switch column {
         case .backlog: "\(text) old"
