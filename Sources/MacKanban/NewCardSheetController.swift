@@ -160,6 +160,10 @@ final class NewCardSheetController: NSViewController {
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
         for view in views {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
+            // Lines break where the width ends: macOS's default strategy pushes a word down
+            // to keep a single word off the last line, which looked like an early break
+            // ("Finish a Card before / starting another.", 2026-11-08).
+            (view as? NSTextField)?.lineBreakStrategy = []
         }
         stack.widthAnchor.constraint(equalToConstant: 400).isActive = true
         return stack
