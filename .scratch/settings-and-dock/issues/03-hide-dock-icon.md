@@ -14,7 +14,7 @@ Without the Dock icon macOS doesn't show MacKanban's own menu bar. Whether the k
 - [x] Off survives relaunching (no Dock icon flashing up at launch); a sample store's setting doesn't change the real one
 - [x] With the Dock icon off, the key equivalents listed above are checked one by one, with the result in the Notes
 - [x] The New Card hotkey still hands back to the previous app after its sheet closes, with the Dock icon off
-- [ ] Screenshots of General in light and dark; checked on a sample store; Christoph checks by hand (screenshots and sample store done)
+- [x] Screenshots of General in light and dark; checked on a sample store; Christoph checks by hand
 
 **Notes from implementing:**
 - The bundle now starts as an app without a Dock icon (`LSUIElement`), and MacKanban switches itself to a normal app at launch, before any window shows, while the setting is on. That's what keeps an icon from flashing up when it's off: macOS shows a normal app's Dock icon before the app's own code runs. Checked by polling the app's type every 50 ms from launch with the setting off: never a normal app.
@@ -24,4 +24,4 @@ Without the Dock icon macOS doesn't show MacKanban's own menu bar. Whether the k
 - Also checked with the Dock icon off: Open Board from the menu bar extra with Terminal in front; the New Card hotkey (TEMP signal hook, since removed) opens the sheet from Terminal and hands back to Terminal after Cancel. The Dock-icon click with the Board closed is unchanged code (not clicked here).
 - Settings spacing: the 16 pt between settings now comes from space above a labelled row rather than below the row before, since that row can be hidden (Launch at login's approval row sat directly above Dock with no gap). The Shortcuts tab keeps 20 pt between its two hotkeys and lost 20 pt of extra space at its bottom, so all tabs end alike.
 - Review (medium) fixes: closed windows stay closed after a switch; quick toggling keeps the first window order; no restore after the switch has settled (a later deactivation is the user's); the Shortcuts spacing loop simplified. Kept: the restore on switching on (it brings the menu bar); starting as an app without a Dock icon (the price of no flash).
-- Christoph's hand check still to come.
+- Checked by hand by Christoph on 2026-11-08.
