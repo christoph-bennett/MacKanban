@@ -365,7 +365,17 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         let mode: CardSheetViewController.Mode = section == .done
             ? .done(archived.card, on: archived.ended, archived: true)
             : .discarded(archived.card, on: archived.ended)
-        presentAsSheet(CardSheetViewController(mode: mode))
+        var offer: CardSheetViewController.RestoreOffer?
+        if section == .discarded, !archived.card.isSample {
+            let card = archived.card
+            // The cost is worked out on hover, so it's current however long the sheet stays open.
+            offer = .init(cost: { [board] in (try? board.restoreGate(card.id)).map(RestoreRefusal.cost) ?? "" },
+                          restore: { [weak self] in
+                              // After the sheet has left the window, so a refusal can show as a sheet.
+                              DispatchQueue.main.async { self?.restore(card) }
+                          })
+        }
+        presentAsSheet(CardSheetViewController(mode: mode, restoreOffer: offer))
     }
 }
 
@@ -517,17 +527,37 @@ private final class CountsHeaderView: NSTableHeaderView {
 /// shown by the Archive, and by the Board when a Triage left no room.
 @MainActor
 enum RestoreRefusal {
-    static func alert(_ card: Card, gate: RestoreGate, cardsToFree: Int) -> NSAlert {
-        func count(_ n: Int) -> String { n == 1 ? "1 Card" : "\(n) Cards" }
-        let age = switch AgeAmount(gate.age) {
+    /// "1 Card", "2 Cards": for the hover text, the refusal and the Triage's reason.
+    static func cards(_ n: Int) -> String { n == 1 ? "1 Card" : "\(n) Cards" }
+
+    /// Whether the cost is more than one slot plus the Card's Urgency suggests,
+    /// because Capacity counts in whole Cards.
+    private static func isRounded(_ gate: RestoreGate) -> Bool {
+        abs(Double(gate.cost - 1) - gate.urgency) >= 0.05
+    }
+
+    /// The Restore button's hover text: what the Card takes up, before it's restored.
+    static func cost(_ gate: RestoreGate) -> String {
+        guard gate.cost > 1 else { return "Takes up the room of 1 Card" }
+        return "Takes up the room of \(cards(gate.cost)) (\(age(gate.age)) old"
+            + (isRounded(gate) ? ", counted in whole Cards as Capacity counts)" : ")")
+    }
+
+    private static func age(_ age: TimeInterval) -> String {
+        switch AgeAmount(age) {
         case .underAnHour: "less than an hour"
         case let .hours(n): n == 1 ? "1 hour" : "\(n) hours"
         case let .days(n): n == 1 ? "1 day" : "\(n) days"
         }
+    }
+
+    static func alert(_ card: Card, gate: RestoreGate, cardsToFree: Int) -> NSAlert {
+        let count = cards
+        let age = age(gate.age)
         let urgency = gate.urgency.formatted(.number.precision(.fractionLength(1)))
         let cost = gate.cost == 1 ? "It takes up the room of 1 Card."
             : "It's \(age) old, so it takes up the room of \(count(gate.cost)): 1 for the Card and \(urgency) for its age"
-                + (abs(Double(gate.cost - 1) - gate.urgency) < 0.05 ? "." : ", counted in whole Cards as Capacity counts.")
+                + (isRounded(gate) ? ", counted in whole Cards as Capacity counts." : ".")
         let room = gate.free > 0 ? "The Board has room for \(count(gate.free))." : "The Board has no room left."
         let alert = NSAlert()
         alert.messageText = "No room to restore “\(card.title)”"

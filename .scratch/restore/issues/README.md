@@ -6,4 +6,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 |---|---|---|---|
 | 01 | [Restore from the Archive's context menu](01-restore-from-context-menu.md) | none | done |
 | 02 | [Triage before a Restore](02-triage-before-restore.md) | 01 | done |
-| 03 | [Restore button in a Discarded Card's sheet](03-restore-button-in-sheet.md) | 01 | ready-for-agent |
+| 03 | [Restore button in a Discarded Card's sheet](03-restore-button-in-sheet.md) | 01 | done |

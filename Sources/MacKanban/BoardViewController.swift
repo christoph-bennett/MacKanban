@@ -151,7 +151,7 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
             let left = max(0, gate.free - gate.cost)
             let reason = triaged.urgency >= 1 && left >= CreationGate.triageThreshold
                 ? "Your most urgent Card is fully red. Decide about it first."
-                : "“\(card.title)” takes up the room of " + (gate.cost == 1 ? "1 Card" : "\(gate.cost) Cards")
+                : "“\(card.title)” takes up the room of " + RestoreRefusal.cards(gate.cost)
                     + ", which leaves \(left) free. Decide about your most urgent Card first."
             let sheet = NewCardSheetController(gate: .triage(triaged), column: column, capacity: try board.capacity(),
                                                startRefusal: try board.moveRefusal(triaged.id, to: .doing), restoring: card,

@@ -18,14 +18,23 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
 
     /// Called with the title and notes when the user adds or saves.
     var onSave: ((_ title: String, _ notes: String) -> Void)?
+    /// A Discarded Card's Restore button (restore ticket 03): its cost as the hover
+    /// text, worked out when shown, and what it does once the sheet has closed.
+    struct RestoreOffer {
+        let cost: () -> String
+        let restore: () -> Void
+    }
+
+    private let restoreOffer: RestoreOffer?
 
     private let mode: Mode
     private let titleField = NSTextField()
     private let notesView = NotesTextView()
     private let saveButton = NSButton(title: "", target: nil, action: nil)
 
-    init(mode: Mode) {
+    init(mode: Mode, restoreOffer: RestoreOffer? = nil) {
         self.mode = mode
+        self.restoreOffer = restoreOffer
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -75,8 +84,14 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
         let buttons = NSStackView(views: [NSView()])
         buttons.orientation = .horizontal
         if isReadOnly {
+            if let restoreOffer {
+                // Always enabled: a click explains a refusal rather than hiding why (spec 0005).
+                let restore = LiveHelpButton(title: "Restore", target: self, action: #selector(restore(_:)))
+                restore.help = restoreOffer.cost
+                buttons.addArrangedSubview(restore)
+            }
             let close = NSButton(title: "Close", target: self, action: #selector(cancel(_:)))
-            close.keyEquivalent = "\r"
+            close.keyEquivalent = "\r"  // Close stays the default, not Restore
             buttons.addArrangedSubview(close)
         } else {
             let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancel(_:)))
@@ -232,6 +247,12 @@ final class CardSheetViewController: NSViewController, NSTextFieldDelegate {
         onSave?(titleField.stringValue, notesView.string)
     }
 
+    @objc private func restore(_ sender: Any?) {
+        let restore = restoreOffer?.restore
+        close()
+        restore?()
+    }
+
     @objc private func cancel(_ sender: Any?) {
         close()
     }
@@ -343,4 +364,22 @@ private final class RoundedBox: NSView {
         layer?.borderColor = NSColor.separatorColor.cgColor
         layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
     }
+}
+
+/// A button whose hover text and VoiceOver help are worked out when they're shown,
+/// not when the button is made: the Restore button's cost changes as Cards age.
+private final class LiveHelpButton: NSButton, NSViewToolTipOwner {
+    var help: () -> String = { "" }
+
+    override func layout() {
+        super.layout()
+        removeAllToolTips()
+        addToolTip(bounds, owner: self, userData: nil)
+    }
+
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
+        help()
+    }
+
+    override func accessibilityHelp() -> String? { help() }
 }
