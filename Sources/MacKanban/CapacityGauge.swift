@@ -32,7 +32,7 @@ final class CapacityGauge: NSButton {
             .foregroundColor: color, .font: font as Any,
         ])
         toolTip = Self.breakdown(of: capacity)
-        setAccessibilityLabel("Capacity: \(capacity.openCards) of \(capacity.total) used")
+        setAccessibilityLabel(capacity.usageLine)
     }
 
     @objc private func showBreakdown(_ sender: Any?) {

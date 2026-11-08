@@ -91,7 +91,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         show(state)
 
-        menu.addItem(disabled(Self.capacityLine(state.capacity)))
+        menu.addItem(disabled(state.capacity.usageLine))
         menu.addItem(.separator())
         menu.addItem(.sectionHeader(title: "Move to Done"))
         let doing = state.columns[.doing] ?? []
@@ -99,7 +99,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(disabled("Nothing in Doing"))
         }
         for card in doing {
-            let cardItem = NSMenuItem(title: Self.shortened(card.title), action: #selector(finish(_:)), keyEquivalent: "")
+            let cardItem = NSMenuItem(title: card.menuTitle, action: #selector(finish(_:)), keyEquivalent: "")
             cardItem.target = self
             cardItem.representedObject = card.id
             cardItem.toolTip = card.ageLabel(in: .doing).map { "\($0). Choose to move it to Done." }
@@ -147,18 +147,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func settings(_ sender: Any?) { onSettings?() }
     @objc private func addSampleCards(_ sender: Any?) { onAddSampleCards?() }
     @objc private func removeSampleCards(_ sender: Any?) { onRemoveSampleCards?() }
-
-    // MARK: Text
-
-    /// "5 of 8 used, −2.40 from aging": two decimals, like the gauge's breakdown.
-    static func capacityLine(_ capacity: Capacity) -> String {
-        let aging = capacity.aging.formatted(.number.precision(.fractionLength(2)))
-        return "\(capacity.openCards) of \(capacity.total) used, −\(aging) from aging"
-    }
-
-    private static func shortened(_ title: String) -> String {
-        title.count <= 50 ? title : title.prefix(49) + "…"
-    }
 
     private static func openCards(in state: BoardState) -> [Card] {
         (state.columns[.backlog] ?? []) + (state.columns[.doing] ?? [])

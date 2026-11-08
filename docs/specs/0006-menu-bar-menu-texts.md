@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 
-Vocabulary follows [GLOSSARY.md](../../GLOSSARY.md) (Capacity, Urgency, Open Card, Doing, Done). It changes two texts from [spec 0001](./0001-mvp.md), story 38, and leaves [ADR 0001](../adr/0001-capacity-and-urgency-rules.md) untouched: the Capacity gauge on the Board still explains where Capacity went. Written on 2026-11-08 from Christoph's request, and checked against Apple's Human Interface Guidelines (snapshot of 2026-09-12). Not grilled. Christoph agreed the Capacity line and the testing approach the same day and chose the guillemet to try first; he may still prefer quotation marks once he has seen it.
+Vocabulary follows [GLOSSARY.md](../../GLOSSARY.md) (Capacity, Urgency, Open Card, Doing, Done). It changes two texts from [spec 0001](./0001-mvp.md), story 38, and leaves [ADR 0001](../adr/0001-capacity-and-urgency-rules.md) untouched: the Capacity gauge on the Board still explains where Capacity went. Written on 2026-11-08 from Christoph's request, and checked against Apple's Human Interface Guidelines (snapshot of 2026-09-12). Not grilled. Christoph agreed the Capacity line and the testing approach the same day and chose the guillemet to try first; he saw it on a sample store the same day and kept it.
 
 ## Problem Statement
 
@@ -33,7 +33,7 @@ The Doing Cards
 
 9. As a user, I want each Doing Card's title behind a guillemet, with none closing it, so that it reads as the Card's words rather than a command to the app.
 10. As a user, I want the guillemet on every Doing Card, so that the group looks uniform whatever the titles say.
-11. As a user, I want to be able to go back to quotation marks after seeing it (“Fix the build script”), the form the app's Restore texts use, so that trying the guillemet costs nothing.
+11. As a user, I want to be able to change the mark later (for example to quotation marks, the form the app's Restore texts use) without much work, so that the choice isn't locked in.
 12. As a user, I want a long title shortened as before (» A very long title…), so that the menu stays narrow.
 13. As a user, I want the title otherwise exactly as I wrote it, so that I recognise my Card.
 14. As a user, I want the "Move to Done" header to stay, so that it's clear what choosing a quoted Card does.
@@ -47,12 +47,12 @@ The Doing Cards
 
 - **The Capacity line** is "Capacity: \<Open Cards\> of \<total\> used". The aging figure is gone from the menu. The line stays a disabled menu item.
 - **The Doing Card's menu title** is the title shortened as today (at most 50 characters, the 50th being "…"), behind "» " (a guillemet and a space). The guillemet doesn't count toward the 50.
-- **One place for the decoration**, so that switching to quotation marks changes that one place and its tests.
+- **One place for the decoration**, so that changing it touches that one place and its tests.
 - **No special case for titles that already contain quotation marks or guillemets.** It's rare and still legible.
 - **A typographic mark, not an icon or a font style.** The HIG has no rule for quoting content in a menu, so this is a design choice, with these findings behind it:
   - Menus: labels are "in general a verb or verb phrase for an action", which is why a Card titled like an instruction passes for a command.
   - Menus: "Use icons sparingly and with purpose", which names "user-generated content like folders", and "Treat items in the same group uniformly: icons for all or none". A Card icon would be allowed, but commands can have icons too, so an icon alone wouldn't stop a title reading as a command. A mark acts on the words themselves, and needs no new symbol.
-  - Writing: "Build language patterns and reuse them." The app writes Card titles in quotation marks in its Restore texts, which speaks for quotation marks. Christoph wants to see the guillemet first: it is shorter, and no closing mark sits after a title.
+  - Writing: "Build language patterns and reuse them." The app writes Card titles in quotation marks in its Restore texts, which speaks for quotation marks. Christoph looked at the guillemet and kept it: it is shorter, and no closing mark sits after a title.
   - Italics are rejected: the HIG gives no support for them here, and the difference is easy to miss at menu size.
 - **The texts move to KanbanCore**, beside the Card's Urgency hover text (MVP 20), so that they can be tested. The menu bar extra only displays them. No change to the Board's rules, the schema or the event log.
 - **The status item's own hover text and VoiceOver label** ("4 of 16 used") don't change.
@@ -77,4 +77,4 @@ The Doing Cards
 
 - The older wording lives on in ticket 11 of the MVP ("5 of 8 used, −2.4 from aging") as a record of what was built then.
 - Tickets go in `.scratch/menu-bar-menu/issues/`.
-- Open after the hand check: guillemet or quotation marks. VoiceOver's reading of the guillemet is to be listened to as part of that check.
+- Decided on 2026-11-08 after a look at a sample store: the guillemet stays. VoiceOver's reading of it hasn't been listened to yet.
