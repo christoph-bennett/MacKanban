@@ -59,6 +59,10 @@ public enum BoardError: LocalizedError, Equatable {
     case archiveDelayIsUp
     case nothingToArchive
     case sampleCardIsReadOnly
+    case cardIsNotDiscarded
+    case sampleCardCantBeRestored
+    case restoreBlocked(cost: Int, free: Int, cardsToFree: Int)
+    case restoreNeedsTriage
     case sampleCardsNeedEmptyBoard
     case cannotUndo
     case cardExists
@@ -80,6 +84,12 @@ public enum BoardError: LocalizedError, Equatable {
         case .nothingToArchive: "Done has no Cards to archive. Sample Cards go to the Archive on their own."
         case .archiveDelayIsUp: "The Card has been in Done longer than the Archive Delay by now, so it stays in the Archive."
         case .sampleCardIsReadOnly: "Sample Cards can't be edited. Create your own Card instead."
+        case .cardIsNotDiscarded: "Only Discarded Cards can be restored. For a Done Card that isn't finished after all, create a new Card."
+        case .sampleCardCantBeRestored: "Sample Cards can't be restored."
+        case .restoreNeedsTriage: "Capacity is nearly used up: a Triage comes first, as when creating a Card."
+        case let .restoreBlocked(cost, free, cardsToFree):
+            "Restoring takes up the room of \(cost) " + (cost == 1 ? "Card" : "Cards") + ", and the Board has room for \(max(0, free)). "
+                + "Finish or Discard \(cardsToFree) " + (cardsToFree == 1 ? "Card" : "Cards") + " first."
         case .sampleCardsNeedEmptyBoard: "Sample Cards can only be added while the Board has no Open Cards and no Sample Cards."
         case .cardExists: "A Card with this ID already exists."
         case let .creationBlocked(capacity, openCards, cardsToFree):
@@ -236,6 +246,24 @@ public final class Board {
         return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
     }
 
+    /// Brings a Discarded Card back from the Archive to Backlog, with its ages
+    /// unchanged (ADR 0008). Refused without room for its whole cost, and when the
+    /// gate asks for a Triage that hasn't happened (`afterTriage`).
+    @discardableResult
+    public func restore(_ id: UUID, afterTriage: Bool = false) throws -> Change {
+        let card = try anyCard(id)
+        guard Self.column(of: card) == nil else { throw BoardError.cardIsNotDiscarded }  // on the Board or Done
+        guard !SampleCards.isSample(id) else { throw BoardError.sampleCardCantBeRestored }
+        let gate = try restoreGate(id)
+        switch gate.outcome {
+        case let .blocked(cardsToFree): throw BoardError.restoreBlocked(cost: gate.cost, free: gate.free, cardsToFree: cardsToFree)
+        case .triage where !afterTriage: throw BoardError.restoreNeedsTriage
+        case .open, .triage: break
+        }
+        let event = try change { try record(.restored, for: card) }
+        return Change(cardID: id, isCreation: false, event: event.objectID.uriRepresentation())
+    }
+
     /// Sends a Done Card to the Archive before the Archive Delay is up, recorded as
     /// an Archived Card Event (ADR 0007). Throughput doesn't change: it counts the
     /// Card from when it entered Done. Sample Cards only leave after the delay.
@@ -312,7 +340,7 @@ public final class Board {
 
     /// Undoes `change` by deleting the event it recorded, so the slip never shows up
     /// in the history (ADR 0002). Refused once the Card has moved on since (its
-    /// Column history, or its archiving, has a newer event; Edited and Triaged events don't count), after
+    /// Column history, its archiving or its Restore has a newer event; Edited and Triaged events don't count), after
     /// `undoWindow`, when it would put Doing over the WIP Limit, or when undoing an
     /// archive wouldn't bring the Card back because the Archive Delay is up by now.
     /// A Change with others `alongside` (Archive All) is undone for all of its Cards
@@ -338,7 +366,7 @@ public final class Board {
         let card = try anyCard(change.cardID)
         let history = Self.history(of: card)
         let placing = history.filter {
-            [Event.Kind.created, .moved, .discarded, .archived].map(\.rawValue).contains($0.value(forKey: "kind") as? String)
+            [Event.Kind.created, .moved, .discarded, .restored, .archived].map(\.rawValue).contains($0.value(forKey: "kind") as? String)
         }
         guard let event = placing.last, event.objectID.uriRepresentation() == change.event,
               !change.isCreation || placing.count == 1,
@@ -559,13 +587,47 @@ public final class Board {
             }
             return .blocked(capacity: capacity.total, openCards: capacity.openCards, cardsToFree: removed)
         }
-        // On a tie, the first in display order: Backlog's oldest before Doing.
-        let mostUrgent = open.reduce(nil as Card?) { best, card in
-            card.urgency > best?.urgency ?? -1 ? card : best
-        }
-        guard let mostUrgent, state.capacity.free <= CreationGate.triageThreshold || mostUrgent.urgency >= 1
+        guard let mostUrgent = Self.mostUrgent(open), state.capacity.free <= CreationGate.triageThreshold || mostUrgent.urgency >= 1
         else { return .open }
         return .triage(mostUrgent)
+    }
+
+    /// Whether a Restore of the Discarded Card goes ahead, needs a Triage first, or
+    /// has no room, and what it costs (ADR 0008).
+    public func restoreGate(_ id: UUID) throws -> RestoreGate {
+        let card = try anyCard(id)
+        let visits = Self.visits(of: card)
+        guard Self.column(after: visits) == nil else { throw BoardError.cardIsNotDiscarded }
+        let now = now()
+        let age = max(0, now.timeIntervalSince(visits.first?.entered ?? now))
+        let urgency = Urgency.of(age: age, in: .backlog)
+        let state = try state()
+        let open = (state.columns[.backlog] ?? []) + (state.columns[.doing] ?? [])
+        let before = state.capacity
+        func after(removing removed: [Double]) -> Capacity {
+            Capacity(throughput: before.throughput, aging: before.aging + urgency - removed.reduce(0, +),
+                     openCards: before.openCards + 1 - removed.count)
+        }
+        let freeAfter = after(removing: []).free
+        let cost = before.free - freeAfter
+        let outcome: RestoreGate.Outcome
+        if freeAfter < 0 {
+            let urgencies = open.map(\.urgency).sorted(by: >)
+            let removed = (1...max(1, urgencies.count)).first { after(removing: Array(urgencies.prefix($0))).free >= 0 } ?? max(1, urgencies.count)
+            outcome = .blocked(cardsToFree: removed)
+        } else if let mostUrgent = Self.mostUrgent(open),
+                  freeAfter < CreationGate.triageThreshold || mostUrgent.urgency >= 1 {
+            outcome = .triage(mostUrgent)
+        } else {
+            outcome = .open
+        }
+        return RestoreGate(outcome: outcome, cost: cost, urgency: urgency, age: age, free: before.free)
+    }
+
+    /// The Open Card a Triage shows: the highest Urgency, on a tie the first in
+    /// display order (Backlog's oldest before Doing).
+    private static func mostUrgent(_ open: [Card]) -> Card? {
+        open.reduce(nil as Card?) { best, card in card.urgency > best?.urgency ?? -1 ? card : best }
     }
 
     /// Records the outcome of a Triage of the Card, after starting or Discarding
@@ -686,8 +748,9 @@ public final class Board {
         return last.left == nil ? last.column : nil
     }
 
-    /// The Card's Column Visits, replayed from its Created, Moved, Discarded and Archived
-    /// events. Discarding ends the last visit without starting another.
+    /// The Card's Column Visits, replayed from its Created, Moved, Discarded, Restored
+    /// and Archived events. Discarding ends the last visit without starting another;
+    /// a Restore starts a new Backlog visit.
     private static func visits(of card: NSManagedObject) -> [ColumnVisit] {
         visits(of: history(of: card))
     }
@@ -706,6 +769,8 @@ public final class Board {
                 visits.append(ColumnVisit(column: to, entered: time))
             case .discarded:
                 if !visits.isEmpty { visits[visits.count - 1].left = time }
+            case .restored:  // a new Backlog visit after a Discard (ADR 0008)
+                visits.append(ColumnVisit(column: .backlog, entered: time))
             case .archived:  // marks the Done visit it follows; not a change of Column
                 if let last = visits.last, last.column == .done, last.left == nil { visits[visits.count - 1].archivedByHand = true }
             case .edited, .triaged, .wipLimitChanged, .creationBlocked, nil:

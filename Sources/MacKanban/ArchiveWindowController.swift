@@ -31,6 +31,12 @@ final class ArchiveWindowController: NSWindowController {
         NSApp.activateAsAsked()  // also from the menu bar extra
     }
 
+    /// After a Restore here, or undoing one: the Board shows the Card (spec 0005).
+    var onRestore: (() -> Void)? {
+        get { archive.onRestore }
+        set { archive.onRestore = newValue }
+    }
+
     /// After a change on the Board: a Discard shows up here straight away.
     func reload() {
         guard let window, window.isVisible || window.isMiniaturized else { return }
@@ -39,8 +45,9 @@ final class ArchiveWindowController: NSWindowController {
 }
 
 @MainActor
-private final class ArchiveViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+private final class ArchiveViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
     private let board: Board
+    var onRestore: (() -> Void)?
     /// The Archive's two sections, in the order shown (spec 0003).
     private enum Section: CaseIterable {
         case done, discarded
@@ -118,6 +125,9 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
         table.target = self
         table.doubleAction = #selector(openClicked(_:))
         table.onReturn = { [weak self] in self?.openSelected() }
+        let menu = NSMenu()
+        menu.delegate = self  // built for the clicked row: Restore on Discarded Cards only
+        table.menu = menu
 
         let scroll = NSScrollView()
         scroll.documentView = table
@@ -261,6 +271,91 @@ private final class ArchiveViewController: NSViewController, NSTableViewDataSour
             field.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         ])
         return cell
+    }
+
+    // MARK: Restore (spec 0005)
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        guard rows.indices.contains(table.clickedRow), case let .card(archived, .discarded) = rows[table.clickedRow],
+              !archived.card.isSample else { return }
+        let item = NSMenuItem(title: "Restore", action: #selector(restoreClicked(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = archived.card
+        menu.addItem(item)
+    }
+
+    @objc private func restoreClicked(_ sender: NSMenuItem) {
+        guard let card = sender.representedObject as? Card else { return }
+        restore(card)
+    }
+
+    /// Back to Backlog if there's room for its whole cost; otherwise a sheet says why.
+    private func restore(_ card: Card) {
+        guard let window = view.window, window.attachedSheet == nil else { return NSSound.beep() }
+        do {
+            let gate = try board.restoreGate(card.id)
+            switch gate.outcome {
+            case .open:
+                try restoreUndoably(card)
+            case let .blocked(cardsToFree):
+                Self.refusal(card, gate: gate, cardsToFree: cardsToFree).beginSheetModal(for: window)
+            case .triage:
+                // Until Triage comes to Restore (restore ticket 02), never go around it.
+                let alert = NSAlert()
+                alert.messageText = "Capacity is nearly used up"
+                alert.informativeText = "Restoring “\(card.title)” now would need a Triage first, which comes in a later version. "
+                    + "Finish or Discard a Card, then try again."
+                alert.beginSheetModal(for: window)
+            }
+        } catch {
+            NSAlert(error: error).beginSheetModal(for: window)
+        }
+    }
+
+    /// Restores and registers the undo with this window; undo and redo update the Board,
+    /// which reloads this window too. A redo goes through the gate again, like a click.
+    private func restoreUndoably(_ card: Card) throws {
+        let change = try board.restore(card.id)
+        onRestore?()
+        guard let undoManager = view.window?.undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { controller in
+            do {
+                try controller.board.revert(change)
+            } catch {
+                return controller.showError(error)
+            }
+            controller.onRestore?()
+            controller.view.window?.undoManager?.registerUndo(withTarget: controller) { controller in
+                controller.restore(card)
+            }
+            controller.view.window?.undoManager?.setActionName("Restore")
+        }
+        undoManager.setActionName("Restore")
+    }
+
+    private func showError(_ error: Error) {
+        guard let window = view.window, window.attachedSheet == nil else { return NSSound.beep() }
+        NSAlert(error: error).beginSheetModal(for: window)
+    }
+
+    /// Why a Free slot on the Board isn't enough (spec 0005, story 18).
+    static func refusal(_ card: Card, gate: RestoreGate, cardsToFree: Int) -> NSAlert {
+        func count(_ n: Int) -> String { n == 1 ? "1 Card" : "\(n) Cards" }
+        let age = switch AgeAmount(gate.age) {
+        case .underAnHour: "less than an hour"
+        case let .hours(n): n == 1 ? "1 hour" : "\(n) hours"
+        case let .days(n): n == 1 ? "1 day" : "\(n) days"
+        }
+        let urgency = gate.urgency.formatted(.number.precision(.fractionLength(1)))
+        let cost = gate.cost == 1 ? "It takes up the room of 1 Card."
+            : "It's \(age) old, so it takes up the room of \(count(gate.cost)): 1 for the Card and \(urgency) for its age"
+                + (abs(Double(gate.cost - 1) - gate.urgency) < 0.05 ? "." : ", counted in whole Cards as Capacity counts.")
+        let room = gate.free > 0 ? "The Board has room for \(count(gate.free))." : "The Board has no room left."
+        let alert = NSAlert()
+        alert.messageText = "No room to restore “\(card.title)”"
+        alert.informativeText = "\(cost) \(room) Finish or Discard \(count(cardsToFree)) first."
+        return alert
     }
 
     /// Esc closes the Archive (an open Card's sheet gets Esc first and closes itself).

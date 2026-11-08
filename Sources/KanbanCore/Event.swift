@@ -8,6 +8,8 @@ public struct Event: Equatable, Sendable {
         case moved
         case edited
         case discarded
+        /// A Discarded Card brought back from the Archive, to Backlog (ADR 0008).
+        case restored
         case triaged
         /// The user sent a Done Card to the Archive before the Archive Delay was up (ADR 0007).
         case archived
