@@ -19,7 +19,7 @@ Everything in [spec 0001](./docs/specs/0001-mvp.md), including **Sample Cards** 
 ## Later
 
 - **Manual reordering ("planning order")** in Backlog and Doing, so I can plan which Cards to do first. The order is only a plan: it never affects Urgency or Capacity, and the default stays oldest first. Deferred 2026-10-23: fixed order first, see how it feels.
-- **Dashboard** of the Board's history: Throughput over time, how long Cards spend in each Column, Cards kept repeatedly in Triage, Creation Blocked frequency, WIP Limit changes. The MVP already records every Card Event and Board Event for it (ADR 0002). Requested 2026-10-23.
+- **Dashboard** of the Board's history: Throughput over time, how long Cards spend in each Column, Cards kept repeatedly in Triage, Creation Blocked frequency, WIP Limit changes. The MVP already records every Card Event and Board Event for it (ADR 0002). Requested 2026-10-23. Grilled 2026-11-09: a read-only window with a Sankey diagram as its main picture, facts only. [Spec 0007](./docs/specs/0007-dashboard.md), parked until 2026-12-01, when four weeks of real use are there to review it against; tickets only after that.
 - **iCloud sync** via `NSPersistentCloudKitContainer`. The model is already CloudKit-ready (ADR 0002). Needs a Developer ID signature, an iCloud container and entitlements, plus a rule for merging conflicting Column Visits.
 
 ## Not planned

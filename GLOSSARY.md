@@ -99,3 +99,9 @@ _Avoid_: Creation limit, backlog limit, quota
 **Triage**:
 The step forced on the user before creating a Card when Capacity is nearly used up. They are shown the Open Card with the highest Urgency and must start it, Discard it or explicitly keep it, or dismiss the sheet without creating anything. Keeping a Card does not change its Urgency.
 _Avoid_: Review, check-in
+
+### Looking back
+
+**Dashboard**:
+The read-only look back at the Board's history, answering whether the user finishes what they start and where Cards get stuck. It states facts only: it offers no actions, goals, scores or advice.
+_Avoid_: Statistics, insights, report
