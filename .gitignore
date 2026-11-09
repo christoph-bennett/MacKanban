@@ -22,8 +22,8 @@ build/
 *.app
 *.dmg
 
-# Session handoff for Claude Code (local only, rewritten by /handoff)
-docs/mackanban-handoff.md
+# Session handoff for Claude Code (local only, rewritten by session-handoff)
+HANDOFF.md
 
 # Claude Code instructions about this Mac's own setup
 CLAUDE.local.md
