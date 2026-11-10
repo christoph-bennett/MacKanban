@@ -18,7 +18,6 @@ Everything in [spec 0001](./docs/specs/0001-mvp.md), including **Sample Cards** 
 
 ## Later
 
-- **Manual reordering ("planning order")** in Backlog and Doing, so I can plan which Cards to do first. The order is only a plan: it never affects Urgency or Capacity, and the default stays oldest first. Deferred 2026-10-23: fixed order first, see how it feels.
 - **Dashboard** of the Board's history: Throughput over time, how long Cards spend in each Column, Cards kept repeatedly in Triage, Creation Blocked frequency, WIP Limit changes. The MVP already records every Card Event and Board Event for it (ADR 0002). Requested 2026-10-23. Grilled 2026-11-09: a read-only window with a Sankey diagram as its main picture, facts only. [Spec 0007](./docs/specs/0007-dashboard.md), parked until 2026-12-01, when four weeks of real use are there to review it against; tickets only after that.
 - **iCloud sync** via `NSPersistentCloudKitContainer`. The model is already CloudKit-ready (ADR 0002). Needs a Developer ID signature, an iCloud container and entitlements, plus a rule for merging conflicting Column Visits.
 
@@ -27,3 +26,4 @@ Everything in [spec 0001](./docs/specs/0001-mvp.md), including **Sample Cards** 
 - **Notifications** (a Card turned red, Capacity dropped). The pressure applies when you come to add something, and nagging from outside the app is a different product. Decided 2026-10-23.
 - **Configurable Urgency thresholds or Capacity formula.** Setting them loose would switch off the mechanism (ADR 0001).
 - **Custom Columns, multiple Boards, due dates, priorities, tags.** One fixed Board is the point, and due dates or priorities would compete with age as the urgency signal.
+- **Manual reordering ("planning order")** in Backlog and Doing. Deferred 2026-10-23 to see how the fixed order feels. Decided 2026-11-10: old Cards must not be sortable out of sight, so the fixed order of spec 0001 (story 13) stays.
