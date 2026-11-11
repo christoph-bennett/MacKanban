@@ -56,7 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.activateAsAsked()  // also when opened at login, with another app in use
             let alert = NSAlert(error: error)
             alert.messageText = "MacKanban can't open its Board."
-            alert.informativeText = "\(error.localizedDescription)\n\nThe store is \(Self.storeURL.path)."
+            alert.informativeText = Self.relativeStorePath.map { "MACKANBAN_STORE must be an absolute path, got \($0)." }
+                ?? "\(error.localizedDescription)\n\nThe store is \(Self.storeURL.path)."
             alert.runModal()
             NSApp.terminate(nil)
             return
@@ -147,10 +148,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let path = ProcessInfo.processInfo.environment["MACKANBAN_STORE"], !path.isEmpty else { return nil }
         let expanded = (path as NSString).expandingTildeInPath
         guard expanded.hasPrefix("/") else {
-            NSLog("MacKanban: MACKANBAN_STORE must be an absolute path, got \(path)")
-            return URL(fileURLWithPath: "/nonexistent/\(path)")  // fails to open, with the alert explaining
+            return URL(fileURLWithPath: "/nonexistent/\(path)")  // fails to open; the alert names `relativeStorePath`
         }
         return URL(fileURLWithPath: expanded)
+    }
+
+    /// A refused `MACKANBAN_STORE`, for the alert (MVP ticket 24).
+    private static var relativeStorePath: String? {
+        guard let path = ProcessInfo.processInfo.environment["MACKANBAN_STORE"], !path.isEmpty,
+              !(path as NSString).expandingTildeInPath.hasPrefix("/") else { return nil }
+        return path
     }
 
     @objc func newCard() {

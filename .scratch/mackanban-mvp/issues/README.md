@@ -26,3 +26,5 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 20 | [Hover text on a Card explains its colour](20-urgency-hover-text.md) | none | done |
 | 21 | [Open the Board at login only when asked](21-board-at-login-optional.md) | none | done |
 | 22 | [About MacKanban](22-about-mackanban.md) | none | done |
+| 23 | [Installing leaves sample Boards alone](23-install-leaves-sample-boards-alone.md) | none | done |
+| 24 | [A clear message for a relative sample-store path](24-clear-message-for-a-relative-store-path.md) | none | done |
