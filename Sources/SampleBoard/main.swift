@@ -34,11 +34,20 @@ nonisolated(unsafe) var now = Date().addingTimeInterval(-40 * 86_400)
     let board = try Board(storeURL: url, now: { now }, wipLimit: Board.wipLimits.upperBound)
     // The Board refuses to create while blocked, so this many slots are kept free
     // by finishing chores, as aging and expiring Throughput eat into Capacity.
+    // Everyday errands, so screenshots read like a real Board.
+    let errands = ["Pick up the dry cleaning", "Pay the parking fine", "Get the bike serviced", "Return the parcel",
+                   "Buy new running shoes", "Cancel the magazine subscription", "Order new glasses", "Defrost the freezer",
+                   "Send the thank-you cards", "Change the smoke alarm batteries", "Renew the car insurance",
+                   "Buy a gift for Jonas", "Clean the windows", "Book a haircut", "Reply to the school newsletter",
+                   "Fix the wobbly chair", "Buy stamps", "Hang the new picture", "Return the drill to Peter",
+                   "Print the boarding passes", "Pay the window cleaner", "Buy light bulbs", "Mend the jacket pocket",
+                   "Water the neighbours' plants", "Take the bottles back", "Buy birdseed", "Wash the car",
+                   "Pick up the prescription", "Clear the gutters", "Recycle the old batteries"]
     var fillers = 0
     func keepRoom(_ slots: Int) throws {
         while try board.capacity().free < slots {
             fillers += 1
-            let filler = try board.createCard(title: "Finished chore \(fillers)", notes: "").cardID
+            let filler = try board.createCard(title: fillers <= errands.count ? errands[fillers - 1] : "Errand \(fillers)", notes: "").cardID
             try board.move(filler, to: .doing)
             try board.move(filler, to: .done)
         }
@@ -57,15 +66,15 @@ nonisolated(unsafe) var now = Date().addingTimeInterval(-40 * 86_400)
         return try board.cards(in: .backlog).first { $0.title == title }!.id
     }
 
-    let report = try card("Quarterly report", "Numbers from finance still missing")
-    let shipped = try card("Ship the beta")
+    let report = try card("Renew my passport", "The photo booth at the station does the right size")
+    let shipped = try card("Book the train to Hamburg")
     try advance(days: 6)
     try board.move(shipped, to: .doing)
-    let tax = try card("Tax return")
-    let rust = try card("Learn Rust", "Maybe next year")
+    let tax = try card("Do the tax return", "All the receipts are in the blue folder")
+    let rust = try card("Learn the ukulele", "Maybe next year")
     try advance(days: 10)
     try board.discard(rust)  // for the Archive
-    let stuck = try card("Fix the build script")
+    let stuck = try card("Sort the holiday photos")
     try board.move(stuck, to: .doing)
     try advance(days: 5)
     try board.move(shipped, to: .done)
@@ -73,12 +82,12 @@ nonisolated(unsafe) var now = Date().addingTimeInterval(-40 * 86_400)
     try advance(days: 7)
     let dentist = try card("Book the dentist")
     try advance(days: 8)
-    let started = try card("Draft the talk")
+    let started = try card("Write the speech for Tom's wedding")
     try board.move(started, to: .doing)
     try advance(days: 2.5)
     let fresh = try card("Reply to Anna", "Before Friday")
     try advance(days: 1.4)
-    let justStarted = try card("Review the pull request")
+    let justStarted = try card("Order Mum's birthday present")
     try board.move(justStarted, to: .doing)  // neutral in Doing: under 4 hours
     _ = (report, tax, call, dentist, fresh)
     // `now` is now about 2.4 hours ago; the app reads the real clock.
