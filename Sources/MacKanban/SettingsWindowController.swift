@@ -28,6 +28,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     /// 2026-10-24, overriding HIG audit finding 5).
     static let showsAgesKey = "showsAges"
     static let showsInDockKey = "showsInDock"
+    static let showsBoardAtLoginKey = "showsBoardAtLogin"
 
     /// After a setting the Board computes with changed (the WIP Limit, the Archive
     /// Delay), so the Board window, and through it the Archive, show the result at once.
@@ -45,6 +46,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     private let archiveDelay = NSPopUpButton()
     private let showsAges = NSButton(checkboxWithTitle: "Show ages on Cards", target: nil, action: nil)
     private let launchAtLogin = NSButton(checkboxWithTitle: "Open MacKanban at login", target: nil, action: nil)
+    private let showsBoardAtLogin = NSButton(checkboxWithTitle: "Open the Board at login", target: nil, action: nil)
     private let showsInDock = NSButton(checkboxWithTitle: "Show MacKanban in the Dock", target: nil, action: nil)
     private let approvalNote = NSTextField(wrappingLabelWithString: "")
     /// Shown only while Launch at login needs approval.
@@ -119,6 +121,15 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         let approval = NSStackView(views: [approvalNote, openSystemSettings])
         approval.orientation = .vertical
         approval.alignment = .leading
+        showsBoardAtLogin.target = self
+        showsBoardAtLogin.action = #selector(showsBoardAtLoginChanged(_:))
+        let boardAtLoginNote = Self.note("When off, MacKanban starts at login in the menu bar, without a window.")
+        // Indented under "Open MacKanban at login", which it depends on.
+        let boardAtLogin = NSStackView(views: [showsBoardAtLogin, boardAtLoginNote])
+        boardAtLogin.orientation = .vertical
+        boardAtLogin.alignment = .leading
+        boardAtLogin.spacing = 4
+        boardAtLogin.edgeInsets = NSEdgeInsets(top: 0, left: 18, bottom: 0, right: 0)
 
         showsInDock.target = self
         showsInDock.action = #selector(showsInDockChanged(_:))
@@ -126,12 +137,13 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
 
         // A fixed width: with only a preferred one, the grid squeezed the notes
         // narrower than they were measured for and cut them off.
-        [wipNote, archiveNote, agesNote, approvalNote, dockNote].forEach(Self.fixWidth)
+        [wipNote, archiveNote, agesNote, approvalNote, dockNote, boardAtLoginNote].forEach(Self.fixWidth)
 
         let general = Self.settingsGrid([
             [NSTextField(labelWithString: "Cards:"), showsAges],
             [NSGridCell.emptyContentView, agesNote],
             [NSTextField(labelWithString: "Startup:"), launchAtLogin],
+            [NSGridCell.emptyContentView, boardAtLogin],
             [NSGridCell.emptyContentView, approval],
             [NSTextField(labelWithString: "Dock:"), showsInDock],
             [NSGridCell.emptyContentView, dockNote],
@@ -361,6 +373,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         launchAtLogin.state = state == .on || state == .needsApproval ? .on : .off
         launchAtLogin.isEnabled = offersLaunchAtLogin && state != .unavailable
         approvalRow.isHidden = state != .needsApproval
+        showsBoardAtLogin.state = defaults.bool(forKey: Self.showsBoardAtLoginKey) ? .on : .off
+        showsBoardAtLogin.isEnabled = launchAtLogin.isEnabled && launchAtLogin.state == .on
         for (hotkey, row) in unavailableRows { row.isHidden = !hotkey.isUnavailable }
     }
 
@@ -395,6 +409,10 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     @objc private func showsInDockChanged(_ sender: NSButton) {
         defaults.set(sender.state == .on, forKey: Self.showsInDockKey)
         onShowsInDockChange?(sender.state == .on)
+    }
+
+    @objc private func showsBoardAtLoginChanged(_ sender: NSButton) {
+        defaults.set(sender.state == .on, forKey: Self.showsBoardAtLoginKey)
     }
 
     @objc private func launchAtLoginChanged(_ sender: NSButton) {

@@ -68,8 +68,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             KeyboardShortcuts.onKeyDown(for: .newCard) { [weak self] in self?.newCardFromHotkey() }
         }
         quitNormallyOnTerminationSignal()
+        // Started at login: quietly, unless asked to show the Board (MVP ticket 21).
+        guard !Self.launchedAtLogin || defaults.bool(forKey: SettingsWindowController.showsBoardAtLoginKey) else { return }
         showBoard()  // activates MacKanban too
         offerSampleCardsOnFirstLaunch(defaults: defaults)
+    }
+
+    /// The launch event macOS sends a login item; read while it is being handled,
+    /// which is when `applicationDidFinishLaunching` runs.
+    private static var launchedAtLogin: Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent else { return false }
+        return event.eventID == kAEOpenApplication
+            && event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
     }
 
     static let sampleCardsOfferedKey = "sampleCardsOffered"
