@@ -25,4 +25,4 @@ One file per ticket, each with its full description and acceptance criteria. Thi
 | 19 | [A read-only Card looks read-only](19-read-only-card-sheet-looks-read-only.md) | none | done |
 | 20 | [Hover text on a Card explains its colour](20-urgency-hover-text.md) | none | done |
 | 21 | [Open the Board at login only when asked](21-board-at-login-optional.md) | none | done |
-| 22 | [About MacKanban](22-about-mackanban.md) | none | ready-for-agent |
+| 22 | [About MacKanban](22-about-mackanban.md) | none | done |

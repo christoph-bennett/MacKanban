@@ -9,13 +9,20 @@ The panel shows the app icon, the name, the version (0.1.0) with the build numbe
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The menu bar extra's menu shows About MacKanban between Settings… and the separator before Quit
-- [ ] The app menu shows About MacKanban first, with a separator under it
-- [ ] Both open the standard About panel with icon, name, version and build number, copyright line and the GitHub link; the link opens the profile in the browser
-- [ ] The panel comes to the front from the menu bar extra with the Dock icon on and off, while another app is in front
-- [ ] The repo has an MIT licence file in Christoph's name
-- [ ] Light and dark look right (screenshots on a sample store)
-- [ ] Spec 0001 gets a dated note under story 38
-- [ ] Checked by hand by Christoph
+- [x] The menu bar extra's menu shows About MacKanban between Settings… and the separator before Quit
+- [x] The app menu shows About MacKanban first, with a separator under it
+- [x] Both open the standard About panel with icon, name, version and build number, copyright line and the GitHub link; the link opens the profile in the browser
+- [x] The panel comes to the front from the menu bar extra with the Dock icon on and off, while another app is in front
+- [x] The repo has an MIT licence file in Christoph's name
+- [x] Light and dark look right (screenshots on a sample store)
+- [x] Spec 0001 gets a dated note under story 38
+- [x] Checked by hand by Christoph
+
+**Notes from implementing:**
+- The standard About panel, as in NSURLSessionMenu: copyright from Info.plist, the GitHub link from a credits file, the build number set to the commit count when bundling. The licence file and credits file are copied from NSURLSessionMenu.
+- MacKanban activates before opening the panel, so it comes to the front even without the Dock icon.
+- No Board tests: nothing in the Board changed. 148 tests pass; a low-effort code review found nothing.
+- Checked 2026-11-11 on a sample store (panel screenshot: "Version 0.1.0 (146)", link, copyright).
+- Checked by hand by Christoph on 2026-11-11.
