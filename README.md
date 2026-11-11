@@ -78,7 +78,7 @@ Two settings shape how the Board behaves:
 
 ### Everyday use
 
-MacKanban lives in the menu bar. Its icon takes on the color of your most urgent Card, and its menu shows how much room is used and what's in Doing. Two hotkeys work from any app: ⌃⌥⇧⌘K shows the Board and ⌃⌥⇧⌘M adds a Card. You can change both in Settings. Esc closes the Board and takes you back to where you were, and ⌘Z undoes a move, a Discard or a new Card right after a slip.
+MacKanban lives in the menu bar. Its icon takes on the color of your most urgent Card, and its menu shows how much room is used and what's in Doing. Two hotkeys work from any app: ⌃⌥K shows the Board and ⌃⌥⇧K adds a Card. You can change both in Settings. Esc closes the Board and takes you back to where you were, and ⌘Z undoes a move, a Discard or a new Card right after a slip.
 
 On first launch, MacKanban offers a few Sample Cards so you can see a Board with Cards of every age. You can remove them again from the menu bar menu.
 
