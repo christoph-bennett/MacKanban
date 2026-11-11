@@ -11,6 +11,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// the app's menu bar, is hidden (spec 0004).
     var onOpenArchive: (() -> Void)?
     var onSettings: (() -> Void)?
+    var onAbout: (() -> Void)?
     /// Moves the chosen Doing Card to Done.
     var onFinish: ((UUID) -> Void)?
     var onAddSampleCards: (() -> Void)?
@@ -132,6 +133,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(withTitle: "Open Board", action: #selector(openBoard(_:)), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Open Archive", action: #selector(openArchive(_:)), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Settings…", action: #selector(settings(_:)), keyEquivalent: "").target = self
+        // Last before Quit: the least important item (MVP ticket 22).
+        menu.addItem(withTitle: "About MacKanban", action: #selector(about(_:)), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit MacKanban", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
     }
@@ -145,6 +148,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func openBoard(_ sender: Any?) { onOpenBoard?() }
     @objc private func openArchive(_ sender: Any?) { onOpenArchive?() }
     @objc private func settings(_ sender: Any?) { onSettings?() }
+    @objc private func about(_ sender: Any?) { onAbout?() }
     @objc private func addSampleCards(_ sender: Any?) { onAddSampleCards?() }
     @objc private func removeSampleCards(_ sender: Any?) { onRemoveSampleCards?() }
 

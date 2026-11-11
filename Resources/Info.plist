@@ -20,6 +20,8 @@
 	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 Christoph Bennett. MIT License.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<!-- Starts without a Dock icon, so none flashes up when it's switched off;

@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusItem.onOpenBoard = { [weak self] in self?.showBoard() }
             statusItem.onOpenArchive = { [weak self] in self?.showArchive() }
             statusItem.onSettings = { [weak self] in self?.showSettings() }
+            statusItem.onAbout = { [weak self] in self?.showAbout() }
             statusItem.onFinish = { [weak board] in board?.finish($0) }
             statusItem.onAddSampleCards = { [weak self] in
                 self?.showBoard()
@@ -163,6 +164,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func showSettings() {
         settings?.showWindow(nil)
+    }
+
+    /// The standard About panel: icon, name, version and copyright from Info.plist,
+    /// then Credits.rtf. Activating first, or it opens behind the app in use.
+    @objc func showAbout() {
+        NSApp.activateAsAsked()
+        NSApp.orderFrontStandardAboutPanel(nil)
     }
 
     /// Every way to it is the user asking for the Board (hotkey, menu bar extra,

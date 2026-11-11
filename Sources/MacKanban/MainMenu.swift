@@ -8,6 +8,9 @@ enum MainMenu {
         let main = NSMenu()
 
         let app = NSMenu()
+        app.addItem(withTitle: "About MacKanban", action: #selector(AppDelegate.showAbout), keyEquivalent: "")
+            .target = appDelegate
+        app.addItem(.separator())
         app.addItem(withTitle: "Settings…", action: #selector(AppDelegate.showSettings), keyEquivalent: ",")
             .target = appDelegate
         app.addItem(.separator())
