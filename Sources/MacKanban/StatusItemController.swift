@@ -23,6 +23,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// While the menu is open the icon is the plain template, which the menu bar
     /// highlights correctly; a coloured image would stay coloured (HIG audit, finding 10).
     private var isMenuOpen = false
+    /// What the button shows now. The once-a-minute refresh reassigns nothing when
+    /// it's unchanged: setting a tooltip again restarts AppKit's tooltip tracking
+    /// and can pop it up with no pointer movement (ghost tooltips).
+    private var shownImageKey: String?
+    private var shownToolTip: String?
 
     init(board: Board) {
         self.board = board
@@ -45,8 +50,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             // the menu saying the Board can't be read.
             let image = NSImage(systemSymbolName: "rectangle.split.3x1", accessibilityDescription: "MacKanban")
             image?.isTemplate = true
-            item.button?.image = image
-            item.button?.toolTip = "MacKanban can't read the Board right now."
+            update(image: image, key: "unreadable", toolTip: "MacKanban can't read the Board right now.")
             return
         }
         show(state)
@@ -72,11 +76,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         } else {
             image?.isTemplate = true  // the menu bar's own colour, light or dark
         }
-        item.button?.image = image
         let capacity = state.capacity
-        item.button?.toolTip = "MacKanban: \(capacity.openCards) of \(capacity.total) used"
+        let key = "\(isFull)-\(tint?.description ?? "none")-\(isMenuOpen)"
+        update(image: image, key: key, toolTip: "MacKanban: \(capacity.openCards) of \(capacity.total) used")
         item.button?.setAccessibilityLabel(
             "MacKanban, \(capacity.openCards) of \(capacity.total) used" + (isFull ? ", no room for new Cards" : ""))
+    }
+
+    private func update(image: NSImage?, key: String, toolTip: String) {
+        if key != shownImageKey {
+            item.button?.image = image
+            shownImageKey = key
+        }
+        if toolTip != shownToolTip {
+            item.button?.toolTip = toolTip
+            shownToolTip = toolTip
+        }
     }
 
     // MARK: NSMenuDelegate

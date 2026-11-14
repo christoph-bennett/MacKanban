@@ -69,6 +69,19 @@ final class BoardViewController: NSViewController, NSMenuItemValidation {
         reload()
     }
 
+    /// Esc with the pointer on a Card can leave AppKit's pending hover text to fire
+    /// after the window is gone: a ghost tooltip over whatever app is in front.
+    /// Cards are rebuilt in viewWillAppear, which brings their hover texts back.
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        func clearToolTips(_ view: NSView) {
+            view.toolTip = nil
+            view.removeAllToolTips()
+            view.subviews.forEach(clearToolTips)
+        }
+        columnViews.forEach(clearToolTips)
+    }
+
     func reload() {
         do {
             let state = try board.state()

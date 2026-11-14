@@ -4,6 +4,8 @@ Ideas and requirements not yet built. New items go to **Inbox**. Once triaged th
 
 ## Inbox
 
+- **URL scheme for MacKanban** (requested 2026-11-14): other apps and scripts create Cards from outside through a `mackanban://` link. Details to follow when it is grilled; it would have to go through Triage and the Capacity block like the New Card sheet.
+
 
 ## MVP
 
